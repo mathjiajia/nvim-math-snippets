@@ -91,7 +91,7 @@ autosnips = {
 		opts
 	),
 	s(
-		{ trig = "(%d+)/", name = "fraction", desc = "auto fraction 1", trigEngine = "pattern", hidden = true },
+		{ trig = "(?<!\\^)(%d+)/", name = "fraction", desc = "auto fraction 1", trigEngine = "ecma", hidden = true },
 		fmta([[\frac{<>}{<>}<>]], { f(function(_, snip)
 			return snip.captures[1]
 		end), i(1), i(0) }),

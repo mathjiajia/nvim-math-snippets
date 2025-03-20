@@ -154,14 +154,15 @@ autosnips = {
 	),
 
 	s(
-		{ trig = "xym", name = "xymatrix Environment", desc = "Create a xymatrix environment." },
+		{ trig = "tkz", name = "tikzcd Environment", desc = "Create a tikzcd environment." },
 		fmta(
 			[[
-			\begin{equation*}
-				\xymatrix{
+			\[
+				\begin{tikzcd}
 					<> \\
-				}
-			\end{equation*}<>
+				\end{tikzcd}
+			\]
+			<>
 			]],
 			{ i(1), i(0) }
 		),

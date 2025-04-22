@@ -1,7 +1,7 @@
 local autosnips = {}
 
-local conds_expand = require("luasnip.extras.conditions.expand")
 local tex = require("math-snippets.latex")
+local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
 
 local opts = { condition = tex.in_text }
 
@@ -98,7 +98,7 @@ autosnips = {
 		name = "phantom",
 		desc = "create a space",
 		hidden = true,
-		condition = conds_expand.line_begin * tex.in_align,
+		condition = expand_line_begin * tex.in_align,
 	}, { t("&\\phantom{\\;=\\;} ") }),
 
 	s({

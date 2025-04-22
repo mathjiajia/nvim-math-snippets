@@ -2,33 +2,41 @@ local snips, autosnips = {}, {}
 
 local tex = require("math-snippets.latex")
 
-local opts = { condition = tex.in_math, show_condition = tex.in_text }
-local opts2 = { condition = tex.in_text, show_condition = tex.in_text }
+local math_opts = { condition = tex.in_math, show_condition = tex.in_math }
+local text_opts = { condition = tex.in_text, show_condition = tex.in_text }
 
 -- Dynamically generates snippets based on matched postfix.
-local function dynamic_postfix(_, parent, _, arg1, arg2)
+local generate_postfix_dynamicnode = function(_, parent, _, user_arg1, user_arg2)
 	local capture = parent.snippet.env.POSTFIX_MATCH
 	if #capture > 0 then
-		return sn(nil, fmta([[<><><><>]], { t(arg1), t(capture), t(arg2), i(0) }))
+		return sn(nil, fmta([[<><><><>]], { t(user_arg1), t(capture), t(user_arg2), i(0) }))
 	else
-		local visual_placeholder = ""
-		if #parent.snippet.env.SELECT_RAW > 0 then
-			visual_placeholder = parent.snippet.env.SELECT_RAW
-		end
-		return sn(nil, fmta([[<><><><>]], { t(arg1), i(1, visual_placeholder), t(arg2), i(0) }))
+		local visual_placeholder = parent.snippet.env.SELECT_RAW
+		return sn(nil, fmta([[<><><><>]], { t(user_arg1), i(1, visual_placeholder), t(user_arg2), i(0) }))
 	end
 end
 
 local function postfix_snippet(context, cmd)
 	context.name = context.desc
 	context.docstring = cmd.pre .. [[(POSTFIX_MATCH|VISUAL|<1>)]] .. cmd.post
-	return postfix(context, { d(1, dynamic_postfix, {}, { user_args = { cmd.pre, cmd.post } }) }, opts)
+	context.match_pattern = [[[%w%.%_%-%"%']*$]]
+	local j, _ = string.find(cmd.pre, context.trig)
+	if j == 2 then
+		context.trigEngine = "ecma"
+		context.trig = "(?<!\\\\)" .. "(" .. context.trig .. ")"
+		context.hidden = true
+	end
+	return postfix(
+		context,
+		{ d(1, generate_postfix_dynamicnode, {}, { user_args = { cmd.pre, cmd.post } }) },
+		math_opts
+	)
 end
 
 snips = {
-	s({ trig = "bf", name = "bold", desc = "Insert bold text." }, { t("\\textbf{"), i(1), t("}") }, opts2),
-	s({ trig = "it", name = "italic", desc = "Insert italic text." }, { t("\\textit{"), i(1), t("}") }, opts2),
-	s({ trig = "em", name = "emphasize", desc = "Insert emphasize text." }, { t("\\emph{"), i(1), t("}") }, opts2),
+	s({ trig = "bf", name = "bold", desc = "Insert bold text." }, { t("\\textbf{"), i(1), t("}") }, text_opts),
+	s({ trig = "it", name = "italic", desc = "Insert italic text." }, { t("\\textit{"), i(1), t("}") }, text_opts),
+	s({ trig = "em", name = "emphasize", desc = "Insert emphasize text." }, { t("\\emph{"), i(1), t("}") }, text_opts),
 }
 
 autosnips = {

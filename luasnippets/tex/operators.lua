@@ -25,16 +25,14 @@ local function sequence_snippet(trig, cmd, desc)
 	)
 end
 
-local function auto_backslash_snippet(trig)
+local function auto_backslash_snippet(context)
+	context.dscr = context.dscr or (context.trig .. "with automatic backslash")
+	context.name = context.name or context.trig
+	context.docstring = context.docstring or ([[\]] .. context.trig)
+	context.trigEngine = "ecma"
+	context.trig = "(?<!\\\\)" .. "(" .. context.trig .. ")"
 	return s(
-		{
-			trig = auto_trigger(trig),
-			name = trig,
-			desc = trig .. "with automatic backslash",
-			trigEngine = "ecma",
-			docstring = [[\]] .. trig,
-			hidden = true,
-		},
+		context,
 		fmta([[\<><>]], { f(function(_, snip)
 			return snip.captures[1]
 		end), i(0) }),
@@ -198,7 +196,7 @@ for k, v in pairs(sequence_specs) do
 end
 
 for _, v in ipairs(operator_specs) do
-	table.insert(autosnips, auto_backslash_snippet(v))
+	table.insert(autosnips, auto_backslash_snippet({ trig = v }))
 end
 
 return snips, autosnips

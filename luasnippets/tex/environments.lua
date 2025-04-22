@@ -1,12 +1,32 @@
 local snips, autosnips = {}, {}
 
-local conds_expand = require("luasnip.extras.conditions.expand")
 local tex = require("math-snippets.latex")
 local pos = require("math-snippets.position")
+local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
 
-local opts = {
-	condition = conds_expand.line_begin * tex.in_text,
-	show_condition = pos.line_begin * tex.in_text,
+local beamer_opts = {
+	condition = expand_line_begin * pos.in_beamer * tex.in_text,
+	show_condition = pos.show_line_begin * pos.in_beamer * tex.in_text,
+}
+
+local begin_opts = {
+	condition = expand_line_begin,
+	show_condition = pos.show_line_begin,
+}
+
+local bullet_opts = {
+	condition = expand_line_begin * tex.in_bullets,
+	show_condition = pos.show_line_begin * tex.in_bullets,
+}
+
+local env_opts = {
+	condition = expand_line_begin * tex.in_text,
+	show_condition = pos.show_line_begin * tex.in_text,
+}
+
+local math_opts = {
+	condition = expand_line_begin * tex.in_math,
+	show_condition = pos.show_line_begin * tex.in_math,
 }
 
 -- Generating function for LaTeX environments like matrix and cases
@@ -53,7 +73,7 @@ local function env_snippet(trig, env)
 			]],
 			{ t(env), i(0), t(env) }
 		),
-		opts
+		env_opts
 	)
 end
 
@@ -69,26 +89,44 @@ local function labeled_env_snippet(trig, env)
 			]],
 			{ t(env), i(1), t(trig), l(l._1:gsub("[^%w]+", "_"):gsub("_$", ""):lower(), 1), i(0), t(env) }
 		),
-		opts
+		env_opts
+	)
+end
+
+local function sec_snippet(trig, name)
+	local context = {
+		trig = trig,
+		name = name,
+		desc = name,
+	}
+	return s(
+		context,
+		fmta(
+			[[
+			\<>{<>}\zlabel{<>:<>}
+
+			<>
+			]],
+			{ t(name), i(1), t(trig), l(l._1:gsub("[^%w]+", "_"):gsub("_*$", ""):lower(), 1), i(0) }
+		),
+		env_opts
 	)
 end
 
 snips = {
 	s(
 		{
-			trig = "([bBpvV])mat_(%d+)x_(%d+)([ar])",
+			trig = "([bBpvV])mat(%d+)x(%d+)([ar])",
 			name = "[bBpvV]matrix",
-			desc = "matrices",
+			dscr = "matrices",
 			trigEngine = "pattern",
 			hidden = true,
-			condition = tex.in_math,
 		},
 		fmta(
 			[[
-			\begin{<>}<>
-				<>
-			\end{<>}
-			]],
+    \begin{<>}<>
+    <>
+    \end{<>}]],
 			{
 				f(function(_, snip)
 					return snip.captures[1] .. "matrix"
@@ -105,18 +143,49 @@ snips = {
 					return snip.captures[1] .. "matrix"
 				end),
 			}
-		)
+		),
+		math_opts
 	),
 }
 
 autosnips = {
+	------------
+	-- BEAMER --
+	------------
+	s(
+		{ trig = "bfr", name = "Beamer Frame Environment" },
+		fmta(
+			[[
+			\begin{frame}
+				\frametitle{<>}
+				<>
+			\end{frame}
+			]],
+			{ i(1, "frame title"), i(0) }
+		),
+		beamer_opts
+	),
+	s(
+		{ trig = "bbl", name = "Beamer Block Environment" },
+		fmta(
+			[[
+			\begin{block}{<>}
+				<>
+			\end{block}
+			]],
+			{ i(1), i(0) }
+		),
+		beamer_opts
+	),
+
+	---------
+	-- ENV --
+	---------
 	s(
 		{
 			trig = "beg",
 			name = "begin/end",
 			desc = "begin/end environment (generic)",
-			condition = conds_expand.line_begin,
-			show_condition = pos.line_begin,
 		},
 		fmta(
 			[[
@@ -125,7 +194,8 @@ autosnips = {
 			\end{<>}
 			]],
 			{ i(1), i(0), rep(1) }
-		)
+		),
+		begin_opts
 	),
 	s(
 		{ trig = "lprf", name = "Titled Proof", desc = "Create a titled proof environment." },
@@ -137,11 +207,11 @@ autosnips = {
 			]],
 			{ i(1), i(0) }
 		),
-		opts
+		env_opts
 	),
 
 	s(
-		{ trig = "(%d?)cases", name = "cases", desc = "cases", trigEngine = "pattern", hidden = true },
+		{ trig = "(%d?)cases", name = "eases", desc = "cases", trigEngine = "pattern", hidden = true },
 		fmta(
 			[[
 			\begin{cases}
@@ -150,7 +220,7 @@ autosnips = {
 			]],
 			{ d(1, generate_cases) }
 		),
-		opts
+		math_opts
 	),
 
 	s(
@@ -166,7 +236,7 @@ autosnips = {
 			]],
 			{ i(1), i(0) }
 		),
-		opts
+		env_opts
 	),
 	s(
 		{ trig = "bit", name = "itemize", desc = "bullet points (itemize)" },
@@ -178,8 +248,10 @@ autosnips = {
 			]],
 			{ c(1, { i(0), sn(nil, fmta([[[<>] <>]], { i(1), i(0) })) }) }
 		),
-		opts
+		env_opts
 	),
+
+	-- requires enumitem
 	s(
 		{ trig = "ben", name = "enumerate", desc = "numbered list (enumerate)" },
 		fmta(
@@ -199,32 +271,22 @@ autosnips = {
 				c(2, { i(0), sn(nil, fmta([[[<>] <>]], { i(1), i(0) })) }),
 			}
 		),
-		opts
+		env_opts
 	),
 
 	-- generate new bullet points
-	s({
-		trig = "--",
-		hidden = true,
-		condition = conds_expand.line_begin * tex.in_bullets,
-		show_condition = pos.line_begin * tex.in_bullets,
-	}, { t("\\item ") }),
-
+	s({ trig = "--", hidden = true }, { t("\\item ") }, bullet_opts),
 	s({
 		trig = "!-",
 		name = "bullet point",
 		desc = "bullet point with custom text",
-		condition = conds_expand.line_begin * tex.in_bullets,
-		show_condition = pos.line_begin * tex.in_bullets,
-	}, fmta([[\item [<>]<>]], { i(1), i(0) })),
+	}, fmta([[\item [<>]<>]], { i(1), i(0) }), bullet_opts),
 
 	s(
 		{
 			trig = "bal",
 			name = "align(|*|ed)",
 			desc = "align math",
-			condition = conds_expand.line_begin,
-			show_condition = pos.line_begin,
 		},
 		fmta(
 			[[
@@ -233,15 +295,14 @@ autosnips = {
 			\end{align<>}
 			]],
 			{ c(1, { t("*"), t(""), t("ed") }), i(2), rep(1) }
-		)
+		),
+		begin_opts
 	),
 
 	s(
 		{
 			trig = "bfu",
 			name = "function",
-			condition = conds_expand.line_begin,
-			show_condition = pos.line_begin,
 		},
 		fmta(
 			[[
@@ -250,15 +311,14 @@ autosnips = {
 			\end{equation*}
 			]],
 			{ i(1), i(2), i(3), i(4), rep(1), rep(4), i(0) }
-		)
+		),
+		begin_opts
 	),
 
 	s(
 		{
 			trig = "beq",
 			desc = "labeled_equation",
-			condition = conds_expand.line_begin,
-			show_condition = pos.line_begin,
 		},
 		fmta(
 			[[
@@ -267,9 +327,22 @@ autosnips = {
 			\end{equation}
 			]],
 			{ i(2), i(1) }
-		)
+		),
+		begin_opts
 	),
 }
+
+local sec_specs = {
+	cha = "chapter",
+	sec = "section",
+	ssec = "section*",
+	sub = "subsection",
+	ssub = "subsection*",
+}
+
+for k, v in pairs(sec_specs) do
+	table.insert(snips, sec_snippet(k, v))
+end
 
 local env_specs = {
 	-- beq = "equation",

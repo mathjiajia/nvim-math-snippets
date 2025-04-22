@@ -1,6 +1,6 @@
 local snips, autosnips = {}, {}
 
-local conds_expand = require("luasnip.extras.conditions.expand")
+local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
 local tex = require("math-snippets.latex")
 local pos = require("math-snippets.position")
 
@@ -12,8 +12,8 @@ local reference_snippet_table = {
 
 local opts = { condition = tex.in_text, show_condition = tex.in_text }
 local opts2 = {
-	condition = conds_expand.line_begin * tex.in_text,
-	show_condition = pos.line_begin * tex.in_text,
+	condition = expand_line_begin * tex.in_text,
+	show_condition = pos.show_line_begin * tex.in_text,
 }
 
 local function phrase_snippet(trig, body)

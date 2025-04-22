@@ -1,9 +1,9 @@
 local snips, autosnips = {}, {}
 
-local conds_expand = require("luasnip.extras.conditions.expand")
+local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
 local pos = require("math-snippets.position")
 
-local opts = { condition = conds_expand.line_begin, show_condition = pos.line_begin }
+local opts = { condition = expand_line_begin, show_condition = pos.show_line_begin }
 
 snips = {
 	s({ trig = "#([2-6])", name = "Heading", desc = "Add Heading", trigEngine = "pattern", hidden = true }, {

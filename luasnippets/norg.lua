@@ -1,8 +1,8 @@
 local snips, autosnips = {}, {}
 
-local conds_expand = require("luasnip.extras.conditions.expand")
+local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
 
-local opts = { condition = conds_expand.line_begin }
+local opts = { condition = expand_line_begin }
 
 snips = {
 	s({

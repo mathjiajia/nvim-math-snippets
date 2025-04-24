@@ -8,6 +8,31 @@ local function auto_trigger(trig)
 	return "(?<!\\\\)" .. "(" .. trig .. ")"
 end
 
+-- visual util to add insert node - thanks ejmastnak!
+local get_visual = function(_, parent)
+	return sn(nil, i(1, parent.snippet.env.SELECT_RAW))
+end
+
+-- fractions (parentheses case)
+-- local generate_fraction = function(_, snip)
+-- 	local stripped = snip.captures[1]
+-- 	local depth = 0
+-- 	local j = #stripped
+-- 	while true do
+-- 		local c = stripped:sub(j, j)
+-- 		if c == "(" then
+-- 			depth = depth + 1
+-- 		elseif c == ")" then
+-- 			depth = depth - 1
+-- 		end
+-- 		if depth == 0 then
+-- 			break
+-- 		end
+-- 		j = j - 1
+-- 	end
+-- 	return sn(nil, fmta([[<>\frac{<>}{<>}]], { t(stripped:sub(1, j - 1)), t(stripped:sub(j + 1, -2)), i(1) }))
+-- end
+
 local function sequence_snippet(trig, cmd, desc)
 	return s(
 		{
@@ -74,27 +99,29 @@ autosnips = {
 		opts
 	),
 
-	s(
-		{ trig = "(%w)//", name = "fraction with a single numerator", trigEngine = "pattern", hidden = true },
-		fmta([[\frac{<>}{<>}<>]], { f(function(_, snip)
-			return snip.captures[1]
-		end), i(1), i(0) }),
-		opts
-	),
-
 	-- fractions
 	s(
-		{ trig = "//", name = "fraction", desc = "fraction (general)" },
-		fmta([[\frac{<>}{<>}<>]], { i(1), i(2), i(0) }),
+		{ trig = "//", name = "fraction", dscr = "fraction (general)" },
+		fmta([[\frac{<>}{<>}<>]], { d(1, get_visual), i(2), i(0) }),
 		opts
 	),
-	s(
-		{ trig = "(?<!\\^)(\\d+)/", name = "fraction", desc = "auto fraction 1", trigEngine = "ecma", hidden = true },
-		fmta([[\frac{<>}{<>}<>]], { f(function(_, snip)
-			return snip.captures[1]
-		end), i(1), i(0) }),
-		opts
-	),
+	-- s(
+	-- 	{
+	-- 		trig = "((\\d+)|(\\d*)(\\\\)?([A-Za-z]+)((\\^|_)(\\{\\d+\\}|\\d))*)\\/",
+	-- 		name = "fraction",
+	-- 		dscr = "auto fraction 1",
+	-- 		trigEngine = "ecma",
+	-- 	},
+	-- 	fmta([[\frac{<>}{<>}<>]], { f(function(_, snip)
+	-- 		return snip.captures[1]
+	-- 	end), i(1), i(0) }),
+	-- 	opts
+	-- ),
+	-- s(
+	-- 	{ trig = "(^.*\\))/", name = "fraction", dscr = "auto fraction 2", trigEngine = "ecma" },
+	-- 	{ d(1, generate_fraction) },
+	-- 	opts
+	-- ),
 
 	s(
 		{ trig = auto_trigger("lim"), name = "lim(sup|inf)", desc = "lim(sup|inf)", trigEngine = "ecma" },

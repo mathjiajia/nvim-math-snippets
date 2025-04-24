@@ -29,9 +29,10 @@ local math_opts = {
 	show_condition = pos.show_line_begin * tex.in_math,
 }
 
--- Generating function for LaTeX environments like matrix and cases
-local function generate_env(rows, cols, default_cols)
-	cols = cols or default_cols
+-- Generating functions for Matrix/Cases
+local generate_matrix = function(_, snip)
+	local rows = tonumber(snip.captures[2])
+	local cols = tonumber(snip.captures[3])
 	local nodes = {}
 	local ins_indx = 1
 	for j = 1, rows do
@@ -44,18 +45,27 @@ local function generate_env(rows, cols, default_cols)
 		end
 		table.insert(nodes, t({ "\\\\", "" }))
 	end
-	return nodes
-end
-
-local generate_matrix = function(_, snip)
-	local nodes = generate_env(tonumber(snip.captures[2]), tonumber(snip.captures[3]))
 	-- fix last node.
 	nodes[#nodes] = t("\\\\")
 	return sn(nil, nodes)
 end
 
+-- update for cases
 local generate_cases = function(_, snip)
-	local nodes = generate_env(tonumber(snip.captures[1]), 2)
+	local rows = tonumber(snip.captures[1]) or 2 -- default option 2 for cases
+	local cols = 2 -- fix to 2 cols
+	local nodes = {}
+	local ins_indx = 1
+	for j = 1, rows do
+		table.insert(nodes, r(ins_indx, tostring(j) .. "x1", i(1)))
+		ins_indx = ins_indx + 1
+		for k = 2, cols do
+			table.insert(nodes, t(" & "))
+			table.insert(nodes, r(ins_indx, tostring(j) .. "x" .. tostring(k), i(1)))
+			ins_indx = ins_indx + 1
+		end
+		table.insert(nodes, t({ "\\\\", "" }))
+	end
 	-- fix last node.
 	table.remove(nodes, #nodes)
 	return sn(nil, nodes)
@@ -116,7 +126,7 @@ end
 snips = {
 	s(
 		{
-			trig = "([bBpvV])mat(%d+)x(%d+)([ar])",
+			trig = "([bBpvV])mat_(%d+)x_(%d+)([ar])",
 			name = "[bBpvV]matrix",
 			dscr = "matrices",
 			trigEngine = "pattern",

@@ -47,6 +47,8 @@ local generate_matrix = function(_, snip)
 			table.insert(nodes, r(insert_index, string.format("%dx%d", row, col), i(1)))
 			insert_index = insert_index + 1
 		end
+
+		-- Only add a line break if not the last row
 		if row ~= rows then
 			table.insert(nodes, t({ " \\\\", "\t" }))
 		end
@@ -64,19 +66,19 @@ local generate_cases = function(_, snip)
 	local nodes = {}
 	local ins_index = 1
 
-	for j = 1, rows do
+	for row = 1, rows do
 		-- Left-hand expression
-		table.insert(nodes, r(ins_index, j .. "l", i(1)))
+		table.insert(nodes, r(ins_index, row .. "l", i(1)))
 		ins_index = ins_index + 1
 
 		-- Alignment (&) and right-hand result
 		table.insert(nodes, t(" & "))
-		table.insert(nodes, r(ins_index, j .. "r", i(1)))
+		table.insert(nodes, r(ins_index, row .. "r", i(1)))
 		ins_index = ins_index + 1
 
 		-- Only add a line break if not the last row
-		if j < rows then
-			table.insert(nodes, t({ " \\,", "	" }))
+		if row ~= rows then
+			table.insert(nodes, t({ " \\\\", "\t" }))
 		end
 	end
 

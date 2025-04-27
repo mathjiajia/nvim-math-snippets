@@ -43,10 +43,10 @@ local generate_matrix = function(_, snip)
 			table.insert(nodes, r(ins_indx, tostring(j) .. "x" .. tostring(k), i(1)))
 			ins_indx = ins_indx + 1
 		end
-		table.insert(nodes, t({ "\\\\", "" }))
+		table.insert(nodes, t({ " \\\\", "" }))
 	end
 	-- fix last node.
-	nodes[#nodes] = t("\\\\")
+	nodes[#nodes] = t(" \\\\")
 	return sn(nil, nodes)
 end
 
@@ -64,7 +64,7 @@ local generate_cases = function(_, snip)
 			table.insert(nodes, r(ins_indx, tostring(j) .. "x" .. tostring(k), i(1)))
 			ins_indx = ins_indx + 1
 		end
-		table.insert(nodes, t({ "\\\\", "" }))
+		table.insert(nodes, t({ " \\\\", "" }))
 	end
 	-- fix last node.
 	table.remove(nodes, #nodes)
@@ -134,9 +134,9 @@ snips = {
 		},
 		fmta(
 			[[
-    \begin{<>}<>
-    <>
-    \end{<>}]],
+			\begin{<>}<>
+				<>
+			\end{<>}]],
 			{
 				f(function(_, snip)
 					return snip.captures[1] .. "matrix"

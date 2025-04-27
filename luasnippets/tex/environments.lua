@@ -29,45 +29,57 @@ local math_opts = {
 	show_condition = pos.show_line_begin * tex.in_math,
 }
 
--- Generating functions for Matrix/Cases
+--- Generates a matrix snippet for LuaSnip.
+-- The size (rows × columns) is taken from the captures of the trigger.
+-- Each entry is an insert node, labeled by its position (e.g., "2x3" for row 2, column 3).
+-- Rows are separated by '\\', except for the last row (no trailing '\\').
 local generate_matrix = function(_, snip)
 	local rows = tonumber(snip.captures[2])
 	local cols = tonumber(snip.captures[3])
 	local nodes = {}
-	local ins_indx = 1
-	for j = 1, rows do
-		table.insert(nodes, r(ins_indx, tostring(j) .. "x1", i(1)))
-		ins_indx = ins_indx + 1
-		for k = 2, cols do
-			table.insert(nodes, t(" & "))
-			table.insert(nodes, r(ins_indx, tostring(j) .. "x" .. tostring(k), i(1)))
-			ins_indx = ins_indx + 1
+	local insert_index = 1
+
+	for row = 1, rows do
+		for col = 1, cols do
+			if col > 1 then
+				table.insert(nodes, t(" & "))
+			end
+			table.insert(nodes, r(insert_index, string.format("%dx%d", row, col), i(1)))
+			insert_index = insert_index + 1
 		end
-		table.insert(nodes, t({ " \\\\", "" }))
+		if row ~= rows then
+			table.insert(nodes, t({ " \\\\", "\t" }))
+		end
 	end
-	-- fix last node.
-	nodes[#nodes] = t(" \\\\")
+
 	return sn(nil, nodes)
 end
 
--- update for cases
+-- Improved LuaSnip function for a LaTeX `cases` environment
+-- Automatically handles a default of 2 rows,
+-- and only inserts line breaks between rows.
 local generate_cases = function(_, snip)
-	local rows = tonumber(snip.captures[1]) or 2 -- default option 2 for cases
-	local cols = 2 -- fix to 2 cols
+	-- Number of cases (rows), default to 2 if capture is empty or invalid
+	local rows = tonumber(snip.captures[1]) or 2
 	local nodes = {}
-	local ins_indx = 1
+	local ins_index = 1
+
 	for j = 1, rows do
-		table.insert(nodes, r(ins_indx, tostring(j) .. "x1", i(1)))
-		ins_indx = ins_indx + 1
-		for k = 2, cols do
-			table.insert(nodes, t(" & "))
-			table.insert(nodes, r(ins_indx, tostring(j) .. "x" .. tostring(k), i(1)))
-			ins_indx = ins_indx + 1
+		-- Left-hand expression
+		table.insert(nodes, r(ins_index, j .. "l", i(1)))
+		ins_index = ins_index + 1
+
+		-- Alignment (&) and right-hand result
+		table.insert(nodes, t(" & "))
+		table.insert(nodes, r(ins_index, j .. "r", i(1)))
+		ins_index = ins_index + 1
+
+		-- Only add a line break if not the last row
+		if j < rows then
+			table.insert(nodes, t({ " \\,", "	" }))
 		end
-		table.insert(nodes, t({ " \\\\", "" }))
 	end
-	-- fix last node.
-	table.remove(nodes, #nodes)
+
 	return sn(nil, nodes)
 end
 

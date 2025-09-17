@@ -60,7 +60,7 @@ autosnips = {
 	s({ trig = "rmap", name = "rational map arrow", wordTrig = false, hidden = true }, {
 		d(1, function()
 			if tex.in_tikzcd() then
-				return sn(nil, { t({ "\\arrow[" }), i(1), t({ ",dashrightarrow]" }) })
+				return sn(nil, { t({ "\\ar[" }), i(1), t({ ",dashrightarrow]" }) })
 			else
 				return sn(nil, { t("\\dashrightarrow ") })
 			end
@@ -70,7 +70,7 @@ autosnips = {
 	s({ trig = "emb", name = "embeddeing map arrow", wordTrig = false, hidden = true }, {
 		d(1, function()
 			if tex.in_tikzcd() then
-				return sn(nil, { t({ "\\arrow[" }), i(1), t({ ",hookrightarrow]" }) })
+				return sn(nil, { t({ "\\ar[" }), i(1), t({ ",hookrightarrow]" }) })
 			else
 				return sn(nil, { t("\\hookrightarrow ") })
 			end
@@ -225,7 +225,7 @@ autosnips = {
 	),
 	s(
 		{ trig = "ar", name = "normal arrows", hidden = true },
-		{ t("\\arrow["), i(1), t("]") },
+		{ t("\\ar["), i(1), t("]") },
 		{ condition = tex.in_tikzcd }
 	),
 

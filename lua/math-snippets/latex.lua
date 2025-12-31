@@ -12,14 +12,14 @@ local BULLET_ENVS = { "itemize", "enumerate" }
 
 ---An insert mode implementation of `vim.treesitter`'s `get_node`
 ---@param opts table? Opts to be passed to `get_node`
----@return TSNode|nil node The node at the cursor
-local function get_node_insert_mode(opts)
+---@return TSNode node The node at the cursor
+local get_node_insert_mode = function(opts)
 	opts = opts or {}
 	local ins_curs = vim.api.nvim_win_get_cursor(0)
 	ins_curs[1] = math.max(ins_curs[1] - 1, 0)
 	ins_curs[2] = math.max(ins_curs[2] - 1, 0)
 	opts.pos = ins_curs
-	return vim.treesitter.get_node(opts)
+	return vim.treesitter.get_node(opts) --[[@as TSNode]]
 end
 
 ---@param node TSNode
@@ -43,8 +43,18 @@ end
 
 ---Check if cursor is in treesitter node of 'math'
 ---@return boolean
-local function in_math()
-	local cursor_node = get_node_insert_mode()
+local function in_math(_, matched_trigger)
+	if matched_trigger and matched_trigger:len() == 1 then
+		-- reparse on single-character triggers to make function wait for the main
+		-- thread to finish tree-sitter parsing (otherwise single character snippets
+		-- will not be recognized if they are the first input in a LaTeX block)
+		vim.treesitter.get_parser():parse()
+	end
+	-- NOTE: This must not be set to `lang = 'latex'`; all injection context is
+	-- lost and the entire buffer is erroneously parsed as LaTeX, leading to
+	-- incorrect snippet evaluation.
+	---@type TSNode
+	local cursor_node = get_node_insert_mode({ ignore_injections = false })
 	local ancestor_node = cursor_node:tree():root()
 	while ancestor_node do
 		if vim.list_contains(MATH_IGNORE, ancestor_node:type()) then

@@ -3,7 +3,7 @@ local M = {}
 local api = vim.api
 local mkcond = require("luasnip.extras.conditions").make_condition
 
----Check if cursor is in treesitter capture
+--- Check if cursor is in treesitter capture
 ---@param capture string
 ---@return boolean
 local function in_ts_capture(capture)
@@ -21,7 +21,7 @@ local function in_ts_capture(capture)
 	return false
 end
 
----Check if cursor is in treesitter capture of 'comment'
+--- Check if cursor is in treesitter capture of 'comment'
 ---@return boolean
 local function in_comments()
 	return in_ts_capture("comment")

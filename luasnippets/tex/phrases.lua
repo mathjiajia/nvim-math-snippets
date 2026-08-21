@@ -4,17 +4,10 @@ local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
 local tex = require("math-snippets.latex")
 local pos = require("math-snippets.position")
 
-local reference_snippet_table = {
-	a = "auto",
-	r = "",
-	z = "zc",
-}
+local reference_snippet_table = { a = "auto", r = "", z = "zc" }
 
 local opts = { condition = tex.in_text, show_condition = tex.in_text }
-local opts2 = {
-	condition = expand_line_begin * tex.in_text,
-	show_condition = pos.show_line_begin * tex.in_text,
-}
+local opts2 = { condition = expand_line_begin * tex.in_text, show_condition = pos.show_line_begin * tex.in_text }
 
 local function phrase_snippet(trig, body)
 	return s({ trig = trig, desc = trig }, t(body), opts)
@@ -25,82 +18,79 @@ snips = {
 		trig = "cf",
 		name = "cross refrence",
 		condition = tex.in_text,
-		show_condition = tex.in_text,
-	}, fmta([[\cite[<>]{<>}<>]], { i(1), i(2), i(0) })),
+		show_condition = tex.in_text
+	}, fmta([[\cite[<>]{<>}<>]], { i(1), i(2), i(0) }))
 }
 
 autosnips = {
 	s({
 		trig = "alab",
 		name = "label",
-		dscr = "add a label",
+		dscr = "add a label"
 	}, fmta([[\zlabel{<>:<>}<>]], { i(1), i(2), i(0) })),
 
-	s(
-		{
-			trig = "([arz])ref",
-			name = "(arz)?ref",
-			desc = "add a reference (with autoref, zcref)",
-			trigEngine = "pattern",
-			hidden = true,
-		},
-		fmta(
-			[[\<>ref{<>}<>]],
-			{ f(function(_, snip)
+	s({
+		trig = "([arz])ref",
+		name = "(arz)?ref",
+		desc = "add a reference (with autoref, zcref)",
+		trigEngine = "pattern",
+		hidden = true
+	},
+		fmta([[\<>ref{<>}<>]], {
+			f(function (_, snip)
 				return reference_snippet_table[snip.captures[1]]
-			end), i(1), i(0) }
-		),
-		opts
-	),
+			end),
+			i(1),
+			i(0)
+		}), opts),
 
-	s(
-		{ trig = "eqref", desc = "add a reference with eqref", hidden = true },
-		fmta([[\eqref{eq:<>}<>]], { i(1), i(0) }),
-		{
-			condition = tex.in_text,
-			show_condition = tex.in_text,
-			callbacks = {
-				[1] = {
-					[events.enter] = function()
-						require("blink.cmp").show({ providers = { "lsp" } })
-					end,
-				},
-			},
+	s({ trig = "eqref", desc = "add a reference with eqref", hidden = true }, fmta([[\eqref{eq:<>}<>]], { i(1), i(0) }), {
+		condition = tex.in_text,
+		show_condition = tex.in_text,
+		callbacks = {
+			[1] = {
+				[events.enter] = function ()
+					require("blink.cmp").show({ providers = { "lsp" } })
+				end
+			}
 		}
-	),
+	}),
 
 	s({
 		trig = "Tfae",
-		name = "The following are equivalent",
+		name = "The following are equivalent"
 	}, { t("The following are equivalent") }, opts2),
 
 	s({
 		trig = "([wW])log",
 		name = "without loss of generality",
-		trigEngine = "pattern",
-	}, {
-		f(function(_, snip)
-			return snip.captures[1] .. "ithout loss of generality"
-		end, {}),
-	}, opts2),
+		trigEngine = "pattern"
+	},
+		{
+			f(function (_, snip)
+				return snip.captures[1] .. "ithout loss of generality"
+			end, {})
+		}, opts2),
 
 	s({ trig = "([qr])c", name = "Cartier", trigEngine = "pattern" }, {
-		f(function(_, snip)
+		f(function (_, snip)
 			return "\\(\\mathbb{" .. string.upper(snip.captures[1]) .. "}\\)-Cartier"
-		end, {}),
-	}, opts),
+		end, {})
+	}, opts
+	),
 	s({ trig = "([qr])d", name = "divisor", trigEngine = "pattern" }, {
-		f(function(_, snip)
+		f(function (_, snip)
 			return "\\(\\mathbb{" .. string.upper(snip.captures[1]) .. "}\\)-divisor"
-		end, {}),
-	}, opts),
+		end, {})
+	}, opts
+	)
 }
 
 local phrase_specs = {
 	-- cf = "cf.~",
 	klt = "Kawamata log terminal",
 	resp = "resp.\\ ",
-	ses = "short exact sequence",
+	ses = "short exact sequence"
 }
 
 local auto_phrase_specs = {
@@ -123,7 +113,7 @@ local auto_phrase_specs = {
 	stt = "such that",
 	tfae = "the following are equivalent",
 	wd = "Weil divisor",
-	wrt = "with respect to ",
+	wrt = "with respect to "
 }
 
 for k, v in pairs(phrase_specs) do

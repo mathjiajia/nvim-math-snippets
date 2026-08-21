@@ -4,7 +4,7 @@ local tex = require("math-snippets.latex")
 
 local math_opts = { condition = tex.in_math, show_condition = tex.in_math }
 
-local get_visual = function(_, parent)
+local get_visual = function (_, parent)
 	return sn(nil, i(1, parent.snippet.env.SELECT_RAW))
 end
 
@@ -38,7 +38,7 @@ local function single_command_snippet(context, cmd, ext)
 		ext.short = ext.short or cmd
 		lnode = c(2 + (offset or 0), {
 			t(""),
-			sn(nil, fmta([[\zlabel{<>:<>}]], { t(ext.short), i(1) })),
+			sn(nil, fmta([[\zlabel{<>:<>}]], { t(ext.short), i(1) }))
 		})
 	end
 	context.docstring = context.docstring or (cmd .. docstring)
@@ -50,69 +50,65 @@ local function single_command_snippet(context, cmd, ext)
 	end
 	-- stype = ext.stype or s
 	return s(
-		context,
-		fmta(cmd .. [[<>{<>}<><>]], { cnode or t(""), d(1 + (offset or 0), get_visual), (lnode or t("")), i(0) }),
+		context, fmta(cmd .. [[<>{<>}<><>]], { cnode or t(""), d(1 + (offset or 0), get_visual), (lnode or t("")), i(0) }),
 		math_opts
 	)
 end
 
 autosnips = {
 	s({ trig = "rmap", name = "rational map arrow", wordTrig = false, hidden = true }, {
-		d(1, function()
+		d(1, function ()
 			if tex.in_tikzcd() then
 				return sn(nil, { t({ "\\ar[" }), i(1), t({ ",dashrightarrow]" }) })
 			else
 				return sn(nil, { t("\\dashrightarrow ") })
 			end
-		end),
-	}, math_opts),
+		end)
+	}, math_opts
+	),
 
 	s({ trig = "emb", name = "embeddeing map arrow", wordTrig = false, hidden = true }, {
-		d(1, function()
+		d(1, function ()
 			if tex.in_tikzcd() then
 				return sn(nil, { t({ "\\ar[" }), i(1), t({ ",hookrightarrow]" }) })
 			else
 				return sn(nil, { t("\\hookrightarrow ") })
 			end
-		end),
-	}, math_opts),
+		end)
+	}, math_opts
+	),
 
 	s({ trig = "\\varpii", name = "\\varpi_i", hidden = true }, { t("\\varpi_{i}") }, math_opts),
 	s({ trig = "\\varphii", name = "\\varphi_i", hidden = true }, { t("\\varphi_{i}") }, math_opts),
-	s(
-		{ trig = "\\([xX])ii", name = "\\xi_{i}", trigEngine = "pattern", hidden = true },
-		{ f(function(_, snip)
+	s({ trig = "\\([xX])ii", name = "\\xi_{i}", trigEngine = "pattern", hidden = true }, {
+		f(function (_, snip)
 			return string.format("\\%si_{i}", snip.captures[1])
-		end, {}) },
-		math_opts
+		end, {})
+	}, math_opts
 	),
-	s(
-		{ trig = "\\([pP])ii", name = "\\pi_{i}", trigEngine = "pattern", hidden = true },
-		{ f(function(_, snip)
+	s({ trig = "\\([pP])ii", name = "\\pi_{i}", trigEngine = "pattern", hidden = true }, {
+		f(function (_, snip)
 			return string.format("\\%si_{i}", snip.captures[1])
-		end, {}) },
-		math_opts
+		end, {})
+	}, math_opts
 	),
-	s(
-		{ trig = "\\([pP])hii", name = "\\phi_{i}", trigEngine = "pattern", hidden = true },
-		{ f(function(_, snip)
+	s({ trig = "\\([pP])hii", name = "\\phi_{i}", trigEngine = "pattern", hidden = true }, {
+		f(function (_, snip)
 			return string.format("\\%shi_{i}", snip.captures[1])
-		end, {}) },
-		math_opts
+		end, {})
+	}, math_opts
 	),
-	s(
-		{ trig = "\\([cC])hii", name = "\\chi_{i}", trigEngine = "pattern", hidden = true },
-		{ f(function(_, snip)
+	s({ trig = "\\([cC])hii", name = "\\chi_{i}", trigEngine = "pattern", hidden = true }, {
+		f(function (_, snip)
 			return string.format("\\%shi_{i}", snip.captures[1])
-		end, {}) },
-		math_opts
+		end, {})
+	}, math_opts
 	),
-	s(
-		{ trig = "\\([pP])sii", name = "\\psi_{i}", trigEngine = "pattern", hidden = true },
-		{ f(function(_, snip)
+	s({ trig = "\\([pP])sii", name = "\\psi_{i}", trigEngine = "pattern", hidden = true }, {
+		f(function (_, snip)
 			return string.format("\\%ssi_{i}", snip.captures[1])
-		end, {}) },
-		math_opts
+		end, {})
+	}, math_opts
 	),
 
 	s({
@@ -120,12 +116,13 @@ autosnips = {
 		name = "local ring, structure sheaf",
 		wordTrig = false,
 		trigEngine = "pattern",
-		hidden = true,
-	}, {
-		f(function(_, snip)
-			return "\\mathcal{O}_{" .. snip.captures[1] .. "}"
-		end, {}),
-	}, math_opts),
+		hidden = true
+	},
+		{
+			f(function (_, snip)
+				return "\\mathcal{O}_{" .. snip.captures[1] .. "}"
+			end, {})
+		}, math_opts),
 
 	s({
 		trig = "(%a)(%d)",
@@ -133,12 +130,13 @@ autosnips = {
 		desc = "Subscript with a single number.",
 		wordTrig = false,
 		trigEngine = "pattern",
-		hidden = true,
-	}, {
-		f(function(_, snip)
-			return string.format("%s_%s", snip.captures[1], snip.captures[2])
-		end, {}),
-	}, math_opts),
+		hidden = true
+	},
+		{
+			f(function (_, snip)
+				return string.format("%s_%s", snip.captures[1], snip.captures[2])
+			end, {})
+		}, math_opts),
 
 	s({
 		trig = "(%a)_(%d%d)",
@@ -146,29 +144,27 @@ autosnips = {
 		desc = "Subscript with two numbers.",
 		wordTrig = false,
 		trigEngine = "pattern",
-		hidden = true,
-	}, {
-		f(function(_, snip)
-			return string.format("%s_{%s}", snip.captures[1], snip.captures[2])
-		end, {}),
-	}, math_opts),
+		hidden = true
+	},
+		{
+			f(function (_, snip)
+				return string.format("%s_{%s}", snip.captures[1], snip.captures[2])
+			end, {})
+		}, math_opts),
 
 	-- s({ trig = "^-", name = "negative exponents", wordTrig = false, hidden = true }, fmta([[^{-<>}]], { i(1) }), opts),
 	s(
 		{ trig = "set", name = "set", desc = "set", hidden = true },
-		fmta([[\{<>\}<>]], { c(1, { r(1, ""), sn(nil, { r(1, ""), t(" \\mid "), i(2) }) }), i(0) }),
-		math_opts
+		fmta([[\{<>\}<>]], { c(1, { r(1, ""), sn(nil, { r(1, ""), t(" \\mid "), i(2) }) }), i(0) }), math_opts
 	),
 	s(
 		{ trig = "nnn", name = "bigcap", desc = "bigcap", hidden = true },
-		fmta([[\bigcap<> <>]], { c(1, { fmta([[_{<>}^{<>}]], { i(1, "i=0"), i(2, "\\infty") }), t("") }), i(0) }),
-		math_opts
+		fmta([[\bigcap<> <>]], { c(1, { fmta([[_{<>}^{<>}]], { i(1, "i=0"), i(2, "\\infty") }), t("") }), i(0) }), math_opts
 	),
 
 	s(
 		{ trig = "uuu", name = "bigcup", desc = "bigcup", hidden = true },
-		fmta([[\bigcup<> <>]], { c(1, { fmta([[_{<>}^{<>}]], { i(1, "i=0"), i(2, "\\infty") }), t("") }), i(0) }),
-		math_opts
+		fmta([[\bigcup<> <>]], { c(1, { fmta([[_{<>}^{<>}]], { i(1, "i=0"), i(2, "\\infty") }), t("") }), i(0) }), math_opts
 	),
 	-- s(
 	-- 	{ trig = "<|", name = "triangleleft <|", wordTrig = false, hidden = true },
@@ -182,28 +178,25 @@ autosnips = {
 	-- ),
 
 	s({ trig = "MK", name = "Mori-Kleiman cone", hidden = true }, { t("\\cNE("), i(1), t(")") }, math_opts),
-	s(
-		{ trig = "([QRZ])P", name = "positive", wordTrig = false, trigEngine = "pattern", hidden = true },
-		{ f(function(_, snip)
+	s({ trig = "([QRZ])P", name = "positive", wordTrig = false, trigEngine = "pattern", hidden = true }, {
+		f(function (_, snip)
 			return "\\mathbb{" .. snip.captures[1] .. "}^{>0}"
-		end, {}) },
-		math_opts
+		end, {})
+	}, math_opts
 	),
 
-	s(
-		{ trig = "([QRZ])N", name = "negative", wordTrig = false, trigEngine = "pattern", hidden = true },
-		{ f(function(_, snip)
+	s({ trig = "([QRZ])N", name = "negative", wordTrig = false, trigEngine = "pattern", hidden = true }, {
+		f(function (_, snip)
 			return "\\mathbb{" .. snip.captures[1] .. "}^{<0}"
-		end, {}) },
-		math_opts
+		end, {})
+	}, math_opts
 	),
 
-	s(
-		{ trig = "([qr])le", name = "linearly equivalent", wordTrig = false, trigEngine = "pattern", hidden = true },
-		{ f(function(_, snip)
+	s({ trig = "([qr])le", name = "linearly equivalent", wordTrig = false, trigEngine = "pattern", hidden = true }, {
+		f(function (_, snip)
 			return "\\sim_{\\mathbb{" .. string.upper(snip.captures[1]) .. "}}"
-		end, {}) },
-		math_opts
+		end, {})
+	}, math_opts
 	),
 
 	-- HACK: <Jia> do not use condition since it cannot be triggered
@@ -218,79 +211,73 @@ autosnips = {
 		-- opts
 	),
 
-	s(
-		{ trig = "==", name = "align equls", wordTrig = false, hidden = true },
-		{ t("& = ") },
-		{ condition = tex.in_align }
-	),
-	s(
-		{ trig = "ar", name = "normal arrows", hidden = true },
-		{ t("\\ar["), i(1), t("]") },
-		{ condition = tex.in_tikzcd }
-	),
+	s({ trig = "==", name = "align equls", wordTrig = false, hidden = true }, { t("& = ") }, { condition = tex.in_align }),
+	s({ trig = "ar", name = "normal arrows", hidden = true }, { t("\\ar["), i(1), t("]") }, { condition = tex.in_tikzcd }),
 
 	s({ trig = "(%a)ii", name = "alph i", wordTrig = false, trigEngine = "pattern", hidden = true }, {
-		f(function(_, snip)
+		f(function (_, snip)
 			return snip.captures[1] .. "_{i}"
-		end, {}),
-	}, math_opts),
+		end, {})
+	}, math_opts
+	),
 	s({ trig = "(%a)jj", name = "alph j", wordTrig = false, trigEngine = "pattern", hidden = true }, {
-		f(function(_, snip)
+		f(function (_, snip)
 			return snip.captures[1] .. "_{j}"
-		end, {}),
-	}, math_opts),
+		end, {})
+	}, math_opts
+	)
 }
 
 local single_command_math_specs = {
 	tt = {
 		context = { name = "text (math)", desc = "text in math mode" },
-		cmd = [[\text]],
+		cmd = [[\text]]
 	},
 	sbf = {
 		context = { name = "symbf", desc = "bold math text" },
-		cmd = [[\symbf]],
+		cmd = [[\symbf]]
 	},
 	syi = {
 		context = { name = "symit", desc = "italic math text" },
-		cmd = [[\symit]],
+		cmd = [[\symit]]
 	},
 	sq = {
 		context = { name = "sqrt", desc = "sqrt" },
 		cmd = [[\sqrt]],
-		ext = { choice = true },
+		ext = { choice = true }
 	},
 	hat = {
 		context = { name = "hat", desc = "wide hat" },
-		cmd = [[\widehat]],
+		cmd = [[\widehat]]
 	},
 	bar = {
 		context = { name = "overline", desc = "overline" },
-		cmd = [[\overline]],
+		cmd = [[\overline]]
 	},
 	td = {
 		context = { name = "tilde", desc = "wide tilde" },
-		cmd = [[\widetilde]],
+		cmd = [[\widetilde]]
 	},
 	abs = {
 		context = { name = "abs", desc = "absolute value" },
-		cmd = [[\abs]],
+		cmd = [[\abs]]
 	},
 	udd = {
 		context = { name = "underline (math)", desc = "underlined text in math mode" },
-		cmd = [[\underline]],
+		cmd = [[\underline]]
 	},
 	sbt = {
 		context = { name = "substack", desc = "substack for sums/products" },
-		cmd = [[\substack]],
+		cmd = [[\substack]]
 	},
 	rup = {
 		context = { name = "round up", desc = "auto round up", wordTrig = false },
-		cmd = [[\rup]],
+		cmd = [[\rup]]
 	},
 	rdn = {
 		context = { name = "round down", desc = "auto round down", wordTrig = false },
-		cmd = [[\rdown]],
-	},
+		cmd = [[\rdown]]
+	}
 }
 
 local greek_specs = {
@@ -329,7 +316,7 @@ local greek_specs = {
 	[";U"] = { context = { name = "Υ" }, command = [[\Upsilon]] },
 	[";W"] = { context = { name = "Ω" }, command = [[\Omega]] },
 	[";X"] = { context = { name = "Ξ" }, command = [[\Xi]] },
-	[";Y"] = { context = { name = "Ψ" }, command = [[\Psi]] },
+	[";Y"] = { context = { name = "Ψ" }, command = [[\Psi]] }
 }
 
 local symbol_specs = {
@@ -399,7 +386,7 @@ local symbol_specs = {
 	-- etc
 	dag = { context = { name = "†" }, cmd = [[\dagger]] },
 	lll = { context = { name = "ℓ" }, cmd = [[\ell]] },
-	quad = { context = { name = " " }, cmd = [[\quad ]] },
+	quad = { context = { name = " " }, cmd = [[\quad ]] }
 	-- xmm = { context = { name = "x_m" }, cmd = [[x_{m}]] },
 	-- xnn = { context = { name = "x_n" }, cmd = [[x_{n}]] },
 	-- ymm = { context = { name = "y_m" }, cmd = [[y_{m}]] },

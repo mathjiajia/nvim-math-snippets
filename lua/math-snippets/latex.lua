@@ -10,10 +10,10 @@ local MATH_IGNORE_COMMANDS = { "SI", "tag", "textbf", "textit" }
 local ALIGN_ENVS = { "multline", "eqnarray", "align", "array", "split", "alignat", "gather", "flalign" }
 local BULLET_ENVS = { "itemize", "enumerate" }
 
----An insert mode implementation of `vim.treesitter`'s `get_node`
+--- An insert mode implementation of `vim.treesitter`'s `get_node`
 ---@param opts table? Opts to be passed to `get_node`
 ---@return TSNode node The node at the cursor
-local get_node_insert_mode = function(opts)
+local get_node_insert_mode = function (opts)
 	opts = opts or {}
 	local ins_curs = vim.api.nvim_win_get_cursor(0)
 	ins_curs[1] = math.max(ins_curs[1] - 1, 0)
@@ -23,7 +23,7 @@ local get_node_insert_mode = function(opts)
 end
 
 ---@param node TSNode
----@return string|nil
+---@return string | nil
 local function get_environment(node)
 	local node_text = vim.treesitter.get_node_text(node, 0)
 	local first_line = vim.split(node_text, "\n")[1]
@@ -32,7 +32,7 @@ local function get_environment(node)
 end
 
 ---@param node TSNode
----@return string|nil
+---@return string | nil
 local function get_command(node)
 	local cmd = node:named_child(0)
 	if cmd then
@@ -41,7 +41,7 @@ local function get_command(node)
 	end
 end
 
----Check if cursor is in treesitter node of 'math'
+--- Check if cursor is in treesitter node of 'math'
 ---@return boolean
 local function in_math(_, matched_trigger)
 	if matched_trigger and matched_trigger:len() == 1 then
@@ -61,15 +61,11 @@ local function in_math(_, matched_trigger)
 			return false
 		elseif vim.list_contains(MATH_NODES, ancestor_node:type()) then
 			return true
-		elseif
-			ancestor_node:type() == "generic_command"
-			and vim.list_contains(MATH_IGNORE_COMMANDS, get_command(ancestor_node))
-		then
+		elseif ancestor_node:type() == "generic_command"
+			and vim.list_contains(MATH_IGNORE_COMMANDS, get_command(ancestor_node)) then
 			return false
-		elseif
-			ancestor_node:type() == "generic_environment"
-			and vim.list_contains(MATH_ENVIRONMENTS, get_environment(ancestor_node))
-		then
+		elseif ancestor_node:type() == "generic_environment"
+			and vim.list_contains(MATH_ENVIRONMENTS, get_environment(ancestor_node)) then
 			return true
 		end
 		ancestor_node = ancestor_node:child_with_descendant(cursor_node)
@@ -77,22 +73,19 @@ local function in_math(_, matched_trigger)
 	return false
 end
 
----Check if cursor is in treesitter node of 'text'
+--- Check if cursor is in treesitter node of 'text'
 ---@return boolean
 local function in_text()
 	return not M.in_math()
 end
 
----Check if cursor is in treesitter node of 'math_environment': 'align'
+--- Check if cursor is in treesitter node of 'math_environment': 'align'
 ---@return boolean
 local function in_align()
 	local cursor_node = get_node_insert_mode()
 	local ancestor_node = cursor_node:tree():root()
 	while ancestor_node do
-		if
-			ancestor_node:type() == "math_environment"
-			and vim.list_contains(ALIGN_ENVS, get_environment(ancestor_node))
-		then
+		if ancestor_node:type() == "math_environment" and vim.list_contains(ALIGN_ENVS, get_environment(ancestor_node)) then
 			return true
 		end
 		ancestor_node = ancestor_node:child_with_descendant(cursor_node)
@@ -104,10 +97,7 @@ local function in_bullets()
 	local cursor_node = get_node_insert_mode()
 	local ancestor_node = cursor_node:tree():root()
 	while ancestor_node do
-		if
-			ancestor_node:type() == "generic_environment"
-			and vim.list_contains(BULLET_ENVS, get_environment(ancestor_node))
-		then
+		if ancestor_node:type() == "generic_environment" and vim.list_contains(BULLET_ENVS, get_environment(ancestor_node)) then
 			return true
 		end
 		ancestor_node = ancestor_node:child_with_descendant(cursor_node)
@@ -115,7 +105,7 @@ local function in_bullets()
 	return false
 end
 
----Check if cursor is in treesitter node of 'math_environment': 'tikzcd'
+--- Check if cursor is in treesitter node of 'math_environment': 'tikzcd'
 ---@return boolean
 local function in_tikzcd()
 	local cursor_node = get_node_insert_mode()
@@ -129,7 +119,7 @@ local function in_tikzcd()
 	return false
 end
 
----Check if cursor is in treesitter node of 'generic_command': '\xymatrix'
+--- Check if cursor is in treesitter node of 'generic_command': '\xymatrix'
 ---@return boolean
 -- local function in_xymatrix()
 -- 	local cursor_node = get_node_insert_mode()

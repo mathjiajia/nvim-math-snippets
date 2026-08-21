@@ -3,7 +3,7 @@ local M = {}
 local api = vim.api
 local mkcond = require("luasnip.extras.conditions").make_condition
 
----Check if the current tex file is a beamer class
+--- Check if the current tex file is a beamer class
 ---@return boolean
 local function in_beamer()
 	local lines = vim.api.nvim_buf_get_lines(0, 0, 10, false)
@@ -15,7 +15,7 @@ local function in_beamer()
 	return false
 end
 
----Check if cursor is in the top 3 lines of a file
+--- Check if cursor is in the top 3 lines of a file
 ---@return boolean
 local function on_top()
 	local cursor = api.nvim_win_get_cursor(0)
@@ -25,7 +25,7 @@ local function on_top()
 	return false
 end
 
----Check if cursor is in the beginning of a line
+--- Check if cursor is in the beginning of a line
 ---@return boolean
 local function show_line_begin(line_to_cursor)
 	return #line_to_cursor <= 3

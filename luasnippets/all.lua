@@ -2,22 +2,22 @@ local username = vim.env.USER:gsub("^%l", string.upper)
 
 --- Options for marks to be used in a TODO comment
 local marks = {
-	signature = function()
+	signature = function ()
 		return fmt("<{}>", i(1, username))
 	end,
-	date_signature = function()
+	date_signature = function ()
 		return fmt("<{}{}>", { i(1, os.date("%d-%m-%y")), i(2, ", " .. username) })
 	end,
-	date = function()
+	date = function ()
 		return fmt("<{}>", i(1, os.date("%d-%m-%y")))
 	end,
-	empty = function()
+	empty = function ()
 		return t("")
-	end,
+	end
 }
 
 local function todo_snippet_nodes(aliases)
-	local aliases_nodes = vim.tbl_map(function(alias)
+	local aliases_nodes = vim.tbl_map(function (alias)
 		return i(nil, alias) -- generate choices for [name-of-comment]
 	end, aliases)
 	local sigmark_nodes = {} -- choices for [comment-mark]
@@ -26,19 +26,19 @@ local function todo_snippet_nodes(aliases)
 	end
 	-- format them into the actual snippet
 	local comment_node = fmt("{} {}: {} {} {}", {
-		f(function()
+		f(function ()
 			return vim.bo.commentstring:gsub("%s*%%s$", "")
 		end),
 		c(1, aliases_nodes), -- [name-of-comment]
-		i(3), -- {comment-text}
+		i(3),                -- {comment-text}
 		c(2, sigmark_nodes), -- [comment-mark]
-		i(0),
+		i(0)
 	})
 	return comment_node
 end
 
 --- Generate a TODO comment snippet with an automatic description and docstring
----@param trig string
+---@param trig    string
 ---@param aliases string[] of aliases for the todo comment (ex.: {FIX, ISSUE, FIXIT, BUG})
 local function todo_snippet(trig, aliases)
 	local alias_string = table.concat(aliases, "|")
@@ -46,7 +46,7 @@ local function todo_snippet(trig, aliases)
 	local context = {
 		trig = trig,
 		name = alias_string .. " comment",
-		desc = alias_string .. " comment with a signature-mark",
+		desc = alias_string .. " comment with a signature-mark"
 	}
 	local comment_node = todo_snippet_nodes(aliases)
 
@@ -59,7 +59,7 @@ local base_specs = {
 	hack = { "HACK" },
 	warn = { "WARN", "WARNING", "XXX" },
 	perf = { "PERF", "PERFORMANCE", "OPTIM", "OPTIMIZE" },
-	note = { "NOTE", "INFO" },
+	note = { "NOTE", "INFO" }
 }
 
 local todo_comment_snippets = {}

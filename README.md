@@ -27,14 +27,16 @@ Example (with [lazy.nvim][lazy]):
 | --- | --- |
 | `in_math` | Inline/display math, math environments, matrices, cases, `tikzcd`, and `\ensuremath{...}` |
 | `in_text` | The complement of `in_math`, including when no parser is available |
-| `in_align` | Math in an environment accepting alignment tabs, such as `align`, `aligned`, `array`, matrices, and cases |
-| `in_bullets` | Text in `itemize`, `enumerate`, or `description` |
+| `in_align` | Math in environment names containing `align`, `array`, `matrix`, or `case`, or named `split` |
+| `in_bullets` | Text in environment names containing `itemize`, `enumerate`, or `description` |
 | `in_tikzcd` | Math in a `tikzcd` environment |
 
 The nearest math/text scope takes precedence: `\text{...}` disables math snippets,
 while explicit math nested inside it enables them again.
-Text-formatting commands, boxes, operator names, tags, and siunitx arguments also
-disable math snippets.
+Command names containing `text`, `emph`, `operatorname`, or `tag`, or ending in
+`box`, disable math snippets, as do the exact commands `SI`, `si`, `qty`, `unit`,
+and `num`.
+`textcolor` and `textwidth` preserve the surrounding mode; `boxed` remains math.
 Comments, verbatim/code regions, labels (including `\zlabel` / `\zcref`), citation
 keys, paths, and environment names disable the positive conditions.
 Array column specifications and `alignat` / `alignedat` column counts are excluded.
@@ -42,6 +44,11 @@ Explicit math in theorem titles and citation notes is supported.
 `in_text` remains a complement, not a test for prose: it can be true in these regions.
 
 Environment names may span lines, and starred variants are recognized.
+Alignment detection matches names containing `align`, `array`, `matrix`, or `case`,
+as well as the exact name `split`, so custom variants in these families work too.
+Other math environment names match `math`, `equation`, `multline`, `gather`, or
+`tikzcd`; list names match `itemize`, `enumerate`, or `description`.
+The numbering wrapper `subequations` does not enable math by itself.
 `gather`, `gathered`, and `multline` are math but do not match `in_align`, because
 the snippets using that condition insert `&`.
 Closing a text argument resumes the enclosing math scope; closing a formula or
@@ -73,8 +80,8 @@ Incomplete formulas are recognized when Tree-sitter recovers a math node with a
 missing closer.
 Malformed input that only produces `ERROR` nodes, such as an unmatched `\begin`,
 may not be recognized until the surrounding syntax is completed.
-Custom TeX macros and environments are not expanded; their meaning must be added
-to the anchored command/environment patterns in `lua/math-snippets/latex.lua` if needed.
+Custom TeX macros and environments are not expanded; names follow these family
+heuristics, which can be adjusted in `lua/math-snippets/latex.lua` if needed.
 
 ## Tests
 

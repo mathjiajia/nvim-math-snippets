@@ -1,52 +1,46 @@
-local M = {}
-
 local api = vim.api
 local ts = vim.treesitter
 local mkcond = require("luasnip.extras.conditions").make_condition
 
--- Compile anchored Vim regexes once. Optional groups keep related names together
--- without prefix matches accidentally accepting names such as "alignment".
+-- Compile Vim regexes once. Match name families unless explicitly anchored.
+---@param expression string
+---@return fun(value: any): boolean
 local function matcher(expression)
-	local pattern = vim.regex("\\v\\C^(" .. expression .. ")$")
-	return function(value)
+	local pattern = vim.regex("\\v\\C(" .. expression .. ")")
+	return function (value)
 		return type(value) == "string" and pattern:match_str(value) ~= nil
 	end
 end
 
-local MATH_NODES = matcher("displayed_equation|inline_formula|math_environment")
+local MATH_NODES = matcher("equation|formula|^math_environment$")
 
--- These conditions guard snippets that insert an alignment tab (&).
-local ALIGN_ENVS = matcher(
-	"align(ed)?(at)?|flalign|(eqn)?array|split|([pbBvV]|small)?matrix|d?r?cases|dr?casesra"
-)
--- Alignment environments are already math; only additional families go here.
--- gather, gathered and multline do not accept alignment tabs.
-local MATH_ENVS = matcher("(display)?math|equation|multlined?|gather(ed)?|tikzcd")
+-- Name families accepting alignment tabs (&), plus the exact name split.
+local ALIGN_ENVS = matcher("align|array|matrix|case|^split$")
+-- Additional math families; gather and multline do not accept alignment tabs.
+local MATH_ENVS = matcher("math|equation|multline|gather|tikzcd")
 local BULLET_ENVS = matcher("itemize|enumerate|description")
-local ARGUMENT_ENVS = matcher("array|align(ed)?at")
-local TEXT_COMMANDS = matcher(
-	"text(normal|rm|sf|tt|up|it|sl|sc|bf|md)?|(short)?intertext|emph|([mhf]|make|frame|par)box"
-		.. "|operatorname|tag|SI|si|qty|unit|num"
-)
+-- Argument layouts are known only for these exact environment names.
+local ARGUMENT_ENVS = matcher("^(array|align(ed)?at)$")
+-- Keep boxed in math, and do not confuse short unit commands with sin, etc.
+local TEXT_COMMANDS = matcher("text|emph|box$|operatorname|tag|^(SI|si|qty|unit|num)$")
 -- zref commands used by this collection are generic_command in the grammar.
-local OPAQUE_COMMANDS = matcher("z(label|ref|[cC](page)?ref)")
-local OPAQUE_NODES = matcher(
-	"((line|block)_)?comment|source_code|label_(definition|reference(_range)?|number)|uri|path"
-		.. "|(comment|verbatim|listing|minted|asy(def)?|pycode|luacode|sage(silent|block))_environment"
-)
+local OPAQUE_COMMANDS = matcher("^z.*(label|ref)")
+local OPAQUE_NODES = matcher("comment|code|label|verbatim|listing|minted|asy|sage|uri|path")
 
--- Node types are a finite vocabulary supplied by the parser. Cache both matches
--- and misses so ordinary text/groups need neither regexes nor scope checks.
--- Do not cache arbitrary command/environment names, which come from the buffer.
+-- Memoize the finite node vocabulary, including misses; never cache user names.
+---@type table<string, { math: boolean, opaque: boolean } | false>
 local NODE_TYPES = setmetatable({}, {
-	__index = function(types, kind)
+	__index = function (types, kind)
 		local math_node, opaque = MATH_NODES(kind), OPAQUE_NODES(kind)
-		local relevant = math_node or opaque or kind == "generic_environment" or kind == "generic_command"
-			or kind == "text_mode" or kind == "begin" or kind == "end" or kind == "citation" or kind == "$$"
+		local relevant = math_node or opaque
+			or kind == "generic_environment" or kind == "generic_command"
+			or kind == "text_mode" or kind == "begin"
+			or kind == "end" or kind == "citation"
+			or kind == "$$"
 		local flags = relevant and { math = math_node, opaque = opaque } or false
 		types[kind] = flags
 		return flags
-	end,
+	end
 })
 
 ---@param node TSNode
@@ -79,9 +73,7 @@ local function command_name(node, bufnr)
 	end
 end
 
--- The node immediately left of the insertion point includes closing delimiters.
--- Once a real closing delimiter has been passed, its scope no longer applies.
--- A missing delimiter is different: "$x|" is still inside an unfinished formula.
+-- A real closer ends scope; missing closers keep unfinished formulas in scope.
 ---@param node TSNode
 ---@param row  integer
 ---@param col  integer
@@ -128,8 +120,11 @@ local EMPTY = { math = false, align = false, bullets = false, tikzcd = false }
 ---@param col   integer
 ---@return math_snippets.Context
 local function classify(node, bufnr, row, col)
-	local context = { math = false, align = false, bullets = false, tikzcd = false }
-	local mode_found = false
+	-- nil: no mode found yet; false: text; true: math.
+	---@type boolean?
+	local math_mode
+	local align, bullets, tikzcd = false, false, false
+	---@type TSNode?
 	local child
 	while node do
 		local kind = node:type()
@@ -139,64 +134,60 @@ local function classify(node, bufnr, row, col)
 				return EMPTY
 			end
 			if kind == "begin" or kind == "end" or kind == "citation" then
-				-- Header names and citation keys are not math. Optional titles/notes
-				-- can contain explicit formulas, whose mode was already found below.
-				local in_note = child
+				-- Only explicit math in an optional title/note survives this boundary.
+				local in_note = math_mode and child
 					and (child == field(node, "options") or child == field(node, "prenote") or child == field(node, "postnote"))
-				if not context.math or not in_note then
+				if not in_note then
 					return EMPTY
 				end
 			end
-			local env, align
+			local env, env_align
 			if kind == "math_environment" or kind == "generic_environment" then
 				env = environment_name(node, bufnr)
-				-- These mandatory arguments specify columns/counts, not math content.
+				-- Column specifications/counts are not math content.
 				if ARGUMENT_ENVS(env) and child and child == node:named_child(1) and child:type() == "curly_group"
 					and in_scope(child, row, col) then
 					return EMPTY
 				end
-				context.bullets = context.bullets or BULLET_ENVS(env)
-				if not mode_found then
-					align = ALIGN_ENVS(env)
-				end
+				bullets = bullets or BULLET_ENVS(env)
+				env_align = math_mode == nil and ALIGN_ENVS(env)
 			end
 			local command = kind == "generic_command" and command_name(node, bufnr)
-			if OPAQUE_COMMANDS(command) then
+			if command and OPAQUE_COMMANDS(command) then
 				return EMPTY
 			end
 			-- The nearest mode switch wins: text inside math, and math inside text.
-			if not mode_found then
+			if math_mode == nil then
 				-- An empty $|$ pair is lexed as one $$ token rather than inline_formula.
 				local empty_inline = false
 				if kind == "$$" then
 					local start_row, start_col = node:start()
 					empty_inline = row == start_row and col == start_col + 1
 				end
-				if kind == "text_mode" or TEXT_COMMANDS(command) then
-					mode_found = true
-				elseif flags.math or align or MATH_ENVS(env) or command == "ensuremath" or empty_inline then
-					mode_found = true
-					context.math = true
-					context.align = align == true
-					context.tikzcd = env == "tikzcd"
+				-- textcolor/textwidth and the numbering wrapper subequations preserve mode.
+				if kind == "text_mode"
+					or (command and command ~= "textcolor" and command ~= "textwidth" and TEXT_COMMANDS(command)) then
+					math_mode = false
+				elseif flags.math or env_align
+					or (env and env ~= "subequations" and MATH_ENVS(env)) or command == "ensuremath"
+					or empty_inline then
+					math_mode, align, tikzcd = true, env_align == true, env == "tikzcd"
 				end
 			end
 		end
 		child, node = node, node:parent()
 	end
-	context.bullets = context.bullets and not context.math
-	return context
+	return { math = math_mode == true, align = align, bullets = bullets and not math_mode, tikzcd = tikzcd }
 end
 
 ---@param parser vim.treesitter.LanguageTree
----@param bufnr integer
----@param row integer
----@param col integer
----@param range integer[]
+---@param bufnr  integer
+---@param row    integer
+---@param col    integer
+---@param range  [integer, integer]
 ---@return math_snippets.Context?
 local function parse_context(parser, bufnr, row, col, range)
-	-- Explicit synchronous parsing is required even without a highlighter.
-	-- Restrict injection parsing to the cursor vicinity, regardless of trigger length.
+	-- Parse synchronously without a highlighter; limit injections to the cursor line.
 	if not parser:parse(range) then
 		return nil
 	end
@@ -206,12 +197,16 @@ local function parse_context(parser, bufnr, row, col, range)
 	local node = language_tree:node_for_range(point, { ignore_injections = true })
 	-- At column zero, inserting before an injected comment belongs to its
 	-- parent language. Do not mistake the right-hand injection for context.
-	while col == 0 and node and language_tree:lang() ~= "latex" and language_tree:parent() do
+	while col == 0 and node and language_tree:lang() ~= "latex" do
+		local parent = language_tree:parent()
+		if not parent then
+			break
+		end
 		local start_row, start_col = node:tree():root():start()
 		if start_row ~= row or start_col ~= col then
 			break
 		end
-		language_tree = language_tree:parent()
+		language_tree = parent
 		node = language_tree:node_for_range(point, { ignore_injections = true })
 	end
 	if language_tree:lang() ~= "latex" then
@@ -220,13 +215,23 @@ local function parse_context(parser, bufnr, row, col, range)
 	return classify(node, bufnr, row, col)
 end
 
--- Keep a single result, not TSNodes or a per-buffer cache requiring cleanup.
--- All LuaSnip conditions at the same insertion point share the parse and walk.
+-- Share one result across conditions at the same insertion point; no cleanup needed.
+---@class math_snippets.ContextCache
+---@field bufnr   integer
+---@field tick    integer
+---@field row     integer
+---@field col     integer
+---@field parser  vim.treesitter.LanguageTree
+---@field range   [integer, integer]
+---@field context math_snippets.Context
+
+---@type math_snippets.ContextCache?
 local cache
 
 ---@return math_snippets.Context
 local function get_context()
 	local bufnr = api.nvim_get_current_buf()
+	---@type [integer, integer]
 	local cursor = api.nvim_win_get_cursor(0)
 	local row, col = cursor[1] - 1, cursor[2]
 	local tick = api.nvim_buf_get_changedtick(bufnr)
@@ -256,21 +261,11 @@ local function get_context()
 	return context
 end
 
-M.in_math = mkcond(function ()
-	return get_context().math
-end)
 -- Preserve the public complement semantics, including buffers without a parser.
-M.in_text = mkcond(function ()
-	return not get_context().math
-end)
-M.in_align = mkcond(function ()
-	return get_context().align
-end)
-M.in_bullets = mkcond(function ()
-	return get_context().bullets
-end)
-M.in_tikzcd = mkcond(function ()
-	return get_context().tikzcd
-end)
-
-return M
+return {
+	in_math = mkcond(function () return get_context().math end),
+	in_text = mkcond(function () return not get_context().math end),
+	in_align = mkcond(function () return get_context().align end),
+	in_bullets = mkcond(function () return get_context().bullets end),
+	in_tikzcd = mkcond(function () return get_context().tikzcd end)
+}

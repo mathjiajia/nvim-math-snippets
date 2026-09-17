@@ -113,12 +113,20 @@ for _, environment in ipairs({ "pmatrix*", "dcases", "rcases", "drcases", "dcase
 	check_case(environment .. " family", "\\begin{" .. environment .. "}x|\\end{" .. environment .. "}", { in_math = true, in_align = true })
 end
 check_case("multlined family", "\\begin{multlined}x|\\end{multlined}", { in_math = true })
--- Patterns must match complete supported names, not arbitrary prefixes/suffixes.
-for _, environment in ipairs({ "alignment", "alignatfoo", "xmatrix", "matrixnotation", "rcasesra", "displaymathematics" }) do
-	check_case(environment .. " is not a math family", "\\begin{" .. environment .. "}x|\\end{" .. environment .. "}", {})
+-- Alignment names intentionally match families, including custom variants.
+for _, environment in ipairs({ "alignment", "alignatfoo", "xmatrix", "matrixnotation", "rcasesra" }) do
+	check_case(environment .. " alignment family", "\\begin{" .. environment .. "}x|\\end{" .. environment .. "}", { in_math = true, in_align = true })
 end
+check_case("custom math family", "\\begin{displaymathematics}x|\\end{displaymathematics}", { in_math = true })
+check_case("subequations preserves text", "\\begin{subequations}words|\\end{subequations}", {})
+check_case("math inside subequations", "\\begin{subequations}\\begin{equation}x|\\end{equation}\\end{subequations}", { in_math = true })
+check_case("custom text command", "\\(\\mytext{word|}\\)", {})
 check_case("textcolor preserves math", "\\(\\textcolor{red}{x|}\\)", { in_math = true })
 check_case("textwidth is not a text-mode command", "\\(\\textwidth{x|}\\)", { in_math = true })
+check_case("boxed preserves math", "\\(\\boxed{x|}\\)", { in_math = true })
+check_case("sin is not a unit command", "\\(\\sin{x|}\\)", { in_math = true })
+check_case("custom reference command", "\\(\\zcustomref{eq:a|}\\)", {})
+check_case("url inside math", "\\(\\url{https://example.org/x|}\\)", {})
 check_case("multiline begin name", "\\begin\n{aligned}\nx|\n\\end{aligned}", { in_math = true, in_align = true })
 check_case("array column specification", "\\begin{array}{c|c}x\\end{array}", {})
 check_case("alignat column count", "\\begin{alignat}{2|}x\\end{alignat}", {})
@@ -134,6 +142,7 @@ check_case("tikzcd text", "\\begin{tikzcd}\\text{words|}\\end{tikzcd}", {})
 for _, environment in ipairs({ "itemize", "enumerate" }) do
 	check_case(environment .. " text", "\\begin{" .. environment .. "}\\item words|\\end{" .. environment .. "}", { in_bullets = true })
 end
+check_case("custom list family", "\\begin{compactitemize}\\item words|\\end{compactitemize}", { in_bullets = true })
 check_case("math within a list", "\\begin{itemize}\\item \\(x|\\)\\end{itemize}", { in_math = true })
 check_case("outside a list", "\\begin{itemize}\\item words\\end{itemize}|", {})
 check_case("unknown environment", "\\begin{unknown}words|\\end{unknown}", {})

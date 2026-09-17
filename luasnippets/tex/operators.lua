@@ -1,43 +1,13 @@
-local snips, autosnips = {}, {}
-
 local tex = require("math-snippets.latex")
+local util = require("math-snippets.util")
 
 local opts = { condition = tex.in_math, show_condition = tex.in_math }
 
-local function auto_trigger(trig)
-	return "(?<!\\\\)" .. "(" .. trig .. ")"
-end
-
--- visual util to add insert node - thanks ejmastnak!
-local get_visual = function (_, parent)
-	return sn(nil, i(1, parent.snippet.env.SELECT_RAW))
-end
-
--- fractions (parentheses case)
--- local generate_fraction = function(_, snip)
--- 	local stripped = snip.captures[1]
--- 	local depth = 0
--- 	local j = #stripped
--- 	while true do
--- 		local c = stripped:sub(j, j)
--- 		if c == "(" then
--- 			depth = depth + 1
--- 		elseif c == ")" then
--- 			depth = depth - 1
--- 		end
--- 		if depth == 0 then
--- 			break
--- 		end
--- 		j = j - 1
--- 	end
--- 	return sn(nil, fmta([[<>\frac{<>}{<>}]], { t(stripped:sub(1, j - 1)), t(stripped:sub(j + 1, -2)), i(1) }))
--- end
-
 local function sequence_snippet(trig, cmd, desc)
 	return s({
-		trig = auto_trigger(trig),
+		trig = util.auto_trigger(trig),
 		name = desc,
-		desc = desc .. "with automatic backslash",
+		desc = desc .. " with automatic backslash",
 		trigEngine = "ecma"
 	},
 		fmta([[\<><><>]], {
@@ -47,25 +17,27 @@ local function sequence_snippet(trig, cmd, desc)
 		}), opts)
 end
 
-local function auto_backslash_snippet(context)
-	context.dscr = context.dscr or (context.trig .. "with automatic backslash")
-	context.name = context.name or context.trig
-	context.docstring = context.docstring or ([[\]] .. context.trig)
-	context.trigEngine = "ecma"
-	context.trig = "(?<!\\\\)" .. "(" .. context.trig .. ")"
-	return s(
-		context,
-		fmta([[\<><>]], {
-			f(function (_, snip)
-				return snip.captures[1]
-			end),
-			i(0)
-		}),
-		opts
-	)
+local function auto_backslash_snippet(trig)
+	return s({
+		trig = util.auto_trigger(trig),
+		name = trig,
+		desc = trig .. " with automatic backslash",
+		docstring = "\\" .. trig,
+		trigEngine = "ecma"
+	}, { t("\\" .. trig), i(0) }, opts)
 end
 
-snips = {
+local function cohomology_snippet(trig, name)
+	return s({ trig = trig, name = name, trigEngine = "pattern", hidden = true },
+		fmta([[<><>)]], {
+			f(function (_, snip)
+				return snip.captures[1] .. "^{" .. snip.captures[2] .. "}(" .. snip.captures[3] .. ","
+			end, {}),
+			i(1)
+		}), opts)
+end
+
+local snips = {
 	s({
 		trig = "/",
 		name = "fraction",
@@ -75,17 +47,8 @@ snips = {
 	}, fmta([[\frac{<>}{<>}<>]], { i(1), i(2), i(0) }), opts)
 }
 
-autosnips = {
-	s(
-		{ trig = "([hH])_(%d)(%u)", name = "cohomology-d", trigEngine = "pattern", hidden = true },
-		fmta([[<><>)]], {
-			f(function (_, snip)
-				return snip.captures[1] .. "^{" .. snip.captures[2] .. "}(" .. snip.captures[3] .. ","
-			end, {}),
-			i(1)
-		}),
-		opts
-	),
+local autosnips = {
+	cohomology_snippet("([hH])_(%d)(%u)", "cohomology-d"),
 
 	s({ trig = "(%a)p(%d)", name = "x[n+1]", trigEngine = "pattern", hidden = true }, {
 		f(function (_, snip)
@@ -101,29 +64,11 @@ autosnips = {
 
 	-- fractions
 	s(
-		{ trig = "//", name = "fraction", dscr = "fraction (general)" },
-		fmta([[\frac{<>}{<>}<>]], { d(1, get_visual), i(2), i(0) }), opts
+		{ trig = "//", name = "fraction", desc = "fraction (general)" },
+		fmta([[\frac{<>}{<>}<>]], { d(1, util.get_visual), i(2), i(0) }), opts
 	),
-	-- s(
-	-- 	{
-	-- 		trig = "((\\d+)|(\\d*)(\\\\)?([A-Za-z]+)((\\^|_)(\\{\\d+\\}|\\d))*)\\/",
-	-- 		name = "fraction",
-	-- 		dscr = "auto fraction 1",
-	-- 		trigEngine = "ecma",
-	-- 	},
-	-- 	fmta([[\frac{<>}{<>}<>]], { f(function(_, snip)
-	-- 		return snip.captures[1]
-	-- 	end), i(1), i(0) }),
-	-- 	opts
-	-- ),
-	-- s(
-	-- 	{ trig = "(^.*\\))/", name = "fraction", dscr = "auto fraction 2", trigEngine = "ecma" },
-	-- 	{ d(1, generate_fraction) },
-	-- 	opts
-	-- ),
-
 	s(
-		{ trig = auto_trigger("lim"), name = "lim(sup|inf)", desc = "lim(sup|inf)", trigEngine = "ecma" },
+		{ trig = util.auto_trigger("lim"), name = "lim(sup|inf)", desc = "lim(sup|inf)", trigEngine = "ecma" },
 		fmta([[\lim<><><>]], {
 			c(1, { t(""), t("sup"), t("inf") }),
 			c(2, { t(""), fmta([[_{<> \to <>}]], { i(1, "n"), i(2, "\\infty") }) }),
@@ -147,16 +92,7 @@ autosnips = {
 		), opts
 	),
 
-	s(
-		{ trig = "([hH])([i-npq])(%u)", name = "cohomology-a", trigEngine = "pattern", hidden = true },
-		fmta([[<><>)]], {
-			f(function (_, snip)
-				return snip.captures[1] .. "^{" .. snip.captures[2] .. "}(" .. snip.captures[3] .. ","
-			end, {}),
-			i(1)
-		}),
-		opts
-	),
+	cohomology_snippet("([hH])([i-npq])(%u)", "cohomology-a"),
 
 	s(
 		{ trig = "rij", name = "(x_n) n ∈ N", hidden = true },
@@ -190,7 +126,7 @@ for k, v in pairs(sequence_specs) do
 end
 
 for _, v in ipairs(operator_specs) do
-	table.insert(autosnips, auto_backslash_snippet({ trig = v }))
+	table.insert(autosnips, auto_backslash_snippet(v))
 end
 
 return snips, autosnips

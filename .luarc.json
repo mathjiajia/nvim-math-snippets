@@ -3,7 +3,6 @@
   "diagnostics.globals": [
     "c",
     "d",
-    "dl",
     "events",
     "f",
     "fmt",

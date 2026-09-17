@@ -1,5 +1,3 @@
-local autosnips = {}
-
 local tex = require("math-snippets.latex")
 local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
 
@@ -8,7 +6,7 @@ local opts = { condition = tex.in_text }
 local function appended_space_after_insert()
 	vim.api.nvim_create_autocmd("InsertCharPre", {
 		callback = function ()
-			if string.find(vim.v.char, "%a") then
+			if vim.v.char:find("%a") then
 				vim.v.char = " " .. vim.v.char
 			end
 		end,
@@ -18,50 +16,25 @@ local function appended_space_after_insert()
 	})
 end
 
-local function surroundWithInlineMath(prefix, content, suffix)
-	return prefix .. "\\(" .. content .. "\\)" .. suffix
+local function surround_with_inline_math(_, snip)
+	local captures = snip.captures
+	return captures[1] .. "\\(" .. captures[2] .. "\\)" .. captures[3] .. captures[4]
 end
 
-autosnips = {
-	s({
-		trig = "(%s)([b-zB-HJ-Z0-9])([,;.%-%)]?)%s+",
-		name = "single-letter variable",
+local function automatic_inline_math(trig, name)
+	return s({
+		trig = trig,
+		name = name,
 		wordTrig = false,
 		trigEngine = "pattern",
 		hidden = true
-	},
-		{
-			f(function (_, snip)
-				return snip.captures[1] .. "\\(" .. snip.captures[2] .. "\\)" .. snip.captures[3]
-			end, {})
-		}, opts),
+	}, f(surround_with_inline_math), opts)
+end
 
-	s({
-		trig = "(%s)([0-9]+[a-zA-Z]+)([,;.%)]?)%s+",
-		name = "surround word starting with number",
-		wordTrig = false,
-		trigEngine = "pattern",
-		hidden = true
-	},
-		{
-			f(function (_, snip)
-				return surroundWithInlineMath(snip.captures[1], snip.captures[2], snip.captures[3])
-			end, {})
-		}, opts),
-
-	s({
-		trig = "(%s)(%w[-_+=><]%w)([,;.%)]?)%s+",
-		name = "surround i+1",
-		wordTrig = false,
-		trigEngine = "pattern",
-		hidden = true
-	},
-		{
-			f(function (_, snip)
-				return surroundWithInlineMath(snip.captures[1], snip.captures[2], snip.captures[3])
-			end, {})
-		}, opts),
-
+return nil, {
+	automatic_inline_math("(%s)([b-zB-HJ-Z0-9])([,;.%-%)]?)(%s+)", "single-letter variable"),
+	automatic_inline_math("(%s)([0-9]+[a-zA-Z]+)([,;.%)]?)(%s+)", "surround word starting with number"),
+	automatic_inline_math("(%s)(%w[-_+=><]%w)([,;.%)]?)(%s+)", "surround i+1"),
 	s({
 		trig = "mk",
 		name = "inline math",
@@ -78,7 +51,7 @@ autosnips = {
 		}),
 	s({
 		trig = "dm",
-		name = "dispaly math",
+		name = "display math",
 		desc = "Insert display Math Environment."
 	}, fmt([[
 			\[
@@ -100,5 +73,3 @@ autosnips = {
 		desc = "Insert non-indented paragraph."
 	}, { t({ "\\noindent", "" }) }, opts)
 }
-
-return nil, autosnips

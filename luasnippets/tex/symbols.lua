@@ -1,115 +1,66 @@
-local autosnips = {}
-
 local tex = require("math-snippets.latex")
+local util = require("math-snippets.util")
 
 local math_opts = { condition = tex.in_math, show_condition = tex.in_math }
 
-local get_visual = function (_, parent)
-	return sn(nil, i(1, parent.snippet.env.SELECT_RAW))
+local function guard_command(context, cmd)
+	if cmd:find(context.trig) == 2 then -- command always starts with backslash
+		context.trigEngine = "ecma"
+		context.trig = util.auto_trigger(context.trig)
+		context.hidden = true
+	end
 end
 
 local function symbol_snippet(context, cmd)
 	context.desc = cmd
 	context.name = context.name or cmd:gsub([[\]], "")
-	context.docstring = (cmd .. [[{0}]])
+	context.docstring = cmd .. [[{0}]]
 	context.wordTrig = false
-	local j, _ = string.find(cmd, context.trig)
-	if j == 2 then -- command always starts with backslash
-		context.trigEngine = "ecma"
-		context.trig = "(?<!\\\\)" .. "(" .. context.trig .. ")"
-		context.hidden = true
-	end
+	guard_command(context, cmd)
 	return s(context, t(cmd), math_opts)
 end
 
-local function single_command_snippet(context, cmd, ext)
+local function single_command_snippet(context, cmd, optional_arg)
 	context.desc = context.desc or cmd
 	context.name = context.name or context.desc
-	local docstring, offset, cnode, lnode
-	if ext.choice == true then
-		docstring = "[" .. [[(<1>)?]] .. "]" .. [[{]] .. [[<2>]] .. [[}]] .. [[<0>]]
-		offset = 1
-		cnode = c(1, { t(""), sn(nil, { t("["), i(1, "opt"), t("]") }) })
-	else
-		docstring = [[{]] .. [[<1>]] .. [[}]] .. [[<0>]]
-	end
-	if ext.label == true then
-		docstring = [[{]] .. [[<1>]] .. [[}]] .. [[\zlabel{(]] .. ext.short .. [[:<2>)?}]] .. [[<0>]]
-		ext.short = ext.short or cmd
-		lnode = c(2 + (offset or 0), {
-			t(""),
-			sn(nil, fmta([[\zlabel{<>:<>}]], { t(ext.short), i(1) }))
-		})
-	end
-	context.docstring = context.docstring or (cmd .. docstring)
-	local j, _ = string.find(cmd, context.trig)
-	if j == 2 then
-		context.trigEngine = "ecma"
-		context.trig = "(?<!\\\\)" .. "(" .. context.trig .. ")"
-		context.hidden = true
-	end
-	-- stype = ext.stype or s
+	context.docstring = context.docstring or (cmd .. (optional_arg and "[(<1>)?]{<2>}<0>" or "{<1>}<0>"))
+	guard_command(context, cmd)
+	local optional = optional_arg and c(1, { t(""), sn(nil, { t("["), i(1, "opt"), t("]") }) }) or t("")
 	return s(
-		context, fmta(cmd .. [[<>{<>}<><>]], { cnode or t(""), d(1 + (offset or 0), get_visual), (lnode or t("")), i(0) }),
+		context, fmta(cmd .. [[<>{<>}<>]], { optional, d(optional_arg and 2 or 1, util.get_visual), i(0) }),
 		math_opts
 	)
 end
 
-autosnips = {
-	s({ trig = "rmap", name = "rational map arrow", wordTrig = false, hidden = true }, {
+local function arrow_snippet(trig, name, command)
+	return s({ trig = trig, name = name, wordTrig = false, hidden = true }, {
 		d(1, function ()
 			if tex.in_tikzcd() then
-				return sn(nil, { t({ "\\ar[" }), i(1), t({ ",dashrightarrow]" }) })
-			else
-				return sn(nil, { t("\\dashrightarrow ") })
+				return sn(nil, { t("\\ar["), i(1), t("," .. command .. "]") })
 			end
+			return sn(nil, { t("\\" .. command .. " ") })
 		end)
-	}, math_opts
-	),
+	}, math_opts)
+end
 
-	s({ trig = "emb", name = "embeddeing map arrow", wordTrig = false, hidden = true }, {
-		d(1, function ()
-			if tex.in_tikzcd() then
-				return sn(nil, { t({ "\\ar[" }), i(1), t({ ",hookrightarrow]" }) })
-			else
-				return sn(nil, { t("\\hookrightarrow ") })
-			end
-		end)
-	}, math_opts
-	),
+local function indexed_greek_snippet(trig, name, template)
+	return s({ trig = trig, name = name, trigEngine = "pattern", hidden = true }, {
+		f(function (_, snip)
+			return template:format(snip.captures[1])
+		end, {})
+	}, math_opts)
+end
 
+local autosnips = {
+	arrow_snippet("rmap", "rational map arrow", "dashrightarrow"),
+	arrow_snippet("emb", "embedding map arrow", "hookrightarrow"),
 	s({ trig = "\\varpii", name = "\\varpi_i", hidden = true }, { t("\\varpi_{i}") }, math_opts),
 	s({ trig = "\\varphii", name = "\\varphi_i", hidden = true }, { t("\\varphi_{i}") }, math_opts),
-	s({ trig = "\\([xX])ii", name = "\\xi_{i}", trigEngine = "pattern", hidden = true }, {
-		f(function (_, snip)
-			return string.format("\\%si_{i}", snip.captures[1])
-		end, {})
-	}, math_opts
-	),
-	s({ trig = "\\([pP])ii", name = "\\pi_{i}", trigEngine = "pattern", hidden = true }, {
-		f(function (_, snip)
-			return string.format("\\%si_{i}", snip.captures[1])
-		end, {})
-	}, math_opts
-	),
-	s({ trig = "\\([pP])hii", name = "\\phi_{i}", trigEngine = "pattern", hidden = true }, {
-		f(function (_, snip)
-			return string.format("\\%shi_{i}", snip.captures[1])
-		end, {})
-	}, math_opts
-	),
-	s({ trig = "\\([cC])hii", name = "\\chi_{i}", trigEngine = "pattern", hidden = true }, {
-		f(function (_, snip)
-			return string.format("\\%shi_{i}", snip.captures[1])
-		end, {})
-	}, math_opts
-	),
-	s({ trig = "\\([pP])sii", name = "\\psi_{i}", trigEngine = "pattern", hidden = true }, {
-		f(function (_, snip)
-			return string.format("\\%ssi_{i}", snip.captures[1])
-		end, {})
-	}, math_opts
-	),
+	indexed_greek_snippet("\\([xX])ii", "\\xi_{i}", "\\%si_{i}"),
+	indexed_greek_snippet("\\([pP])ii", "\\pi_{i}", "\\%si_{i}"),
+	indexed_greek_snippet("\\([pP])hii", "\\phi_{i}", "\\%shi_{i}"),
+	indexed_greek_snippet("\\([cC])hii", "\\chi_{i}", "\\%shi_{i}"),
+	indexed_greek_snippet("\\([pP])sii", "\\psi_{i}", "\\%ssi_{i}"),
 
 	s({
 		trig = "O([A-NP-Za-z])",
@@ -152,31 +103,6 @@ autosnips = {
 			end, {})
 		}, math_opts),
 
-	-- s({ trig = "^-", name = "negative exponents", wordTrig = false, hidden = true }, fmta([[^{-<>}]], { i(1) }), opts),
-	s(
-		{ trig = "set", name = "set", desc = "set", hidden = true },
-		fmta([[\{<>\}<>]], { c(1, { r(1, ""), sn(nil, { r(1, ""), t(" \\mid "), i(2) }) }), i(0) }), math_opts
-	),
-	s(
-		{ trig = "nnn", name = "bigcap", desc = "bigcap", hidden = true },
-		fmta([[\bigcap<> <>]], { c(1, { fmta([[_{<>}^{<>}]], { i(1, "i=0"), i(2, "\\infty") }), t("") }), i(0) }), math_opts
-	),
-
-	s(
-		{ trig = "uuu", name = "bigcup", desc = "bigcup", hidden = true },
-		fmta([[\bigcup<> <>]], { c(1, { fmta([[_{<>}^{<>}]], { i(1, "i=0"), i(2, "\\infty") }), t("") }), i(0) }), math_opts
-	),
-	-- s(
-	-- 	{ trig = "<|", name = "triangleleft <|", wordTrig = false, hidden = true },
-	-- 	{ t("\\triangleleft ") },
-	-- 	opts
-	-- ),
-	-- s(
-	-- 	{ trig = "|>", name = "triangleright |>", wordTrig = false, hidden = true },
-	-- 	{ t("\\triangleright ") },
-	-- 	opts
-	-- ),
-
 	s({ trig = "MK", name = "Mori-Kleiman cone", hidden = true }, { t("\\cNE("), i(1), t(")") }, math_opts),
 	s({ trig = "([QRZ])P", name = "positive", wordTrig = false, trigEngine = "pattern", hidden = true }, {
 		f(function (_, snip)
@@ -201,14 +127,12 @@ autosnips = {
 
 	-- HACK: <Jia> do not use condition since it cannot be triggered
 	s(
-		{ trig = "^^", name = "auto supscript", wordTrig = false, hidden = true },
+		{ trig = "^^", name = "auto superscript", wordTrig = false, hidden = true },
 		fmta([[^{<>}<>]], { i(1), i(0) })
-		-- opts
 	),
 	s(
 		{ trig = "__", name = "auto subscript", wordTrig = false, hidden = true },
 		fmta([[_{<>}<>]], { i(1), i(0) })
-		-- opts
 	),
 
 	s(
@@ -245,7 +169,7 @@ local single_command_math_specs = {
 	sq = {
 		context = { name = "sqrt", desc = "sqrt" },
 		cmd = [[\sqrt]],
-		ext = { choice = true }
+		optional_arg = true
 	},
 	hat = {
 		context = { name = "hat", desc = "wide hat" },
@@ -291,7 +215,7 @@ local greek_specs = {
 	[";f"] = { context = { name = "φ" }, command = [[\phi]] },
 	[";vf"] = { context = { name = "φ" }, command = [[\varphi]] },
 	[";g"] = { context = { name = "γ" }, command = [[\gamma]] },
-	[";h"] = { context = { name = "θ" }, command = [[\eta]] },
+	[";h"] = { context = { name = "η" }, command = [[\eta]] },
 	[";i"] = { context = { name = "ι" }, command = [[\iota]] },
 	[";k"] = { context = { name = "κ" }, command = [[\kappa]] },
 	[";l"] = { context = { name = "λ" }, command = [[\lambda]] },
@@ -345,7 +269,7 @@ local symbol_specs = {
 	op = { context = { name = "⊕" }, cmd = [[\oplus]] },
 	ox = { context = { name = "⊗" }, cmd = [[\otimes]] },
 	nvs = { context = { name = "-1" }, cmd = [[^{-1}]] },
-	nabl = { context = { name = "∇" }, cmd = [[\\nabla]] },
+	nabl = { context = { name = "∇" }, cmd = [[\nabla]] },
 	[";="] = { context = { name = "≡" }, cmd = [[\equiv ]] },
 	[";-"] = { context = { name = "∖" }, cmd = [[\setminus ]] },
 	[";6"] = { context = { name = "∂" }, cmd = [[\partial]] },
@@ -388,40 +312,22 @@ local symbol_specs = {
 	dag = { context = { name = "†" }, cmd = [[\dagger]] },
 	lll = { context = { name = "ℓ" }, cmd = [[\ell]] },
 	quad = { context = { name = " " }, cmd = [[\quad ]] }
-	-- xmm = { context = { name = "x_m" }, cmd = [[x_{m}]] },
-	-- xnn = { context = { name = "x_n" }, cmd = [[x_{n}]] },
-	-- ymm = { context = { name = "y_m" }, cmd = [[y_{m}]] },
-	-- ynn = { context = { name = "y_n" }, cmd = [[y_{n}]] },
 }
 
 local function merge_context(trig, context)
 	return vim.tbl_deep_extend("keep", { trig = trig }, context)
 end
 
--- ==========================================
--- Greek Letter Snippets
--- ==========================================
-local greek_snippets = {}
-
 for k, v in pairs(greek_specs) do
-	table.insert(greek_snippets, symbol_snippet(merge_context(k, v.context), v.command))
+	table.insert(autosnips, symbol_snippet(merge_context(k, v.context), v.command))
 end
 
-vim.list_extend(autosnips, greek_snippets)
-
--- ==========================================
--- math symbol Snippets
--- ==========================================
-local symbol_snippets = {}
-
 for k, v in pairs(single_command_math_specs) do
-	table.insert(symbol_snippets, single_command_snippet(merge_context(k, v.context), v.cmd, v.ext or {}))
+	table.insert(autosnips, single_command_snippet(merge_context(k, v.context), v.cmd, v.optional_arg))
 end
 
 for k, v in pairs(symbol_specs) do
-	table.insert(symbol_snippets, symbol_snippet(merge_context(k, v.context), v.cmd))
+	table.insert(autosnips, symbol_snippet(merge_context(k, v.context), v.cmd))
 end
-
-vim.list_extend(autosnips, symbol_snippets)
 
 return nil, autosnips

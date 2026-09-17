@@ -1,32 +1,33 @@
-local snips, autosnips = {}, {}
-
 local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
 local tex = require("math-snippets.latex")
 local pos = require("math-snippets.position")
 
-local reference_snippet_table = { a = "auto", r = "", z = "zc" }
+local reference_prefixes = { a = "auto", r = "", z = "zc" }
 
-local opts = { condition = tex.in_text, show_condition = tex.in_text }
-local opts2 = { condition = expand_line_begin * tex.in_text, show_condition = pos.show_line_begin * tex.in_text }
+local text_opts = { condition = tex.in_text, show_condition = tex.in_text }
+local line_begin_opts = { condition = expand_line_begin * tex.in_text, show_condition = pos.show_line_begin * tex.in_text }
 
 local function phrase_snippet(trig, body)
-	return s({ trig = trig, desc = trig }, t(body), opts)
+	return s({ trig = trig, desc = trig }, t(body), text_opts)
 end
 
-snips = {
-	s({
-		trig = "cf",
-		name = "cross refrence",
-		condition = tex.in_text,
-		show_condition = tex.in_text
-	}, fmta([[\cite[<>]{<>}<>]], { i(1), i(2), i(0) }))
+local function rational_phrase_snippet(trig, name)
+	return s({ trig = trig, name = name, trigEngine = "pattern" }, {
+		f(function (_, snip)
+			return "\\(\\mathbb{" .. snip.captures[1]:upper() .. "}\\)-" .. name
+		end, {})
+	}, text_opts)
+end
+
+local snips = {
+	s({ trig = "cf", name = "cross reference" }, fmta([[\cite[<>]{<>}<>]], { i(1), i(2), i(0) }), text_opts)
 }
 
-autosnips = {
+local autosnips = {
 	s({
 		trig = "alab",
 		name = "label",
-		dscr = "add a label"
+		desc = "add a label"
 	}, fmta([[\zlabel{<>:<>}<>]], { i(1), i(2), i(0) })),
 
 	s({
@@ -38,11 +39,11 @@ autosnips = {
 	},
 		fmta([[\<>ref{<>}<>]], {
 			f(function (_, snip)
-				return reference_snippet_table[snip.captures[1]]
+				return reference_prefixes[snip.captures[1]]
 			end),
 			i(1),
 			i(0)
-		}), opts),
+		}), text_opts),
 
 	s({ trig = "eqref", desc = "add a reference with eqref", hidden = true }, fmta([[\eqref{eq:<>}<>]], { i(1), i(0) }), {
 		condition = tex.in_text,
@@ -50,7 +51,10 @@ autosnips = {
 		callbacks = {
 			[1] = {
 				[events.enter] = function ()
-					require("blink.cmp").show({ providers = { "lsp" } })
+					local ok, blink = pcall(require, "blink.cmp")
+					if ok then
+						blink.show({ providers = { "lsp" } })
+					end
 				end
 			}
 		}
@@ -59,7 +63,7 @@ autosnips = {
 	s({
 		trig = "Tfae",
 		name = "The following are equivalent"
-	}, { t("The following are equivalent") }, opts2),
+	}, { t("The following are equivalent") }, line_begin_opts),
 
 	s({
 		trig = "([wW])log",
@@ -70,24 +74,13 @@ autosnips = {
 			f(function (_, snip)
 				return snip.captures[1] .. "ithout loss of generality"
 			end, {})
-		}, opts2),
+		}, line_begin_opts),
 
-	s({ trig = "([qr])c", name = "Cartier", trigEngine = "pattern" }, {
-		f(function (_, snip)
-			return "\\(\\mathbb{" .. string.upper(snip.captures[1]) .. "}\\)-Cartier"
-		end, {})
-	}, opts
-	),
-	s({ trig = "([qr])d", name = "divisor", trigEngine = "pattern" }, {
-		f(function (_, snip)
-			return "\\(\\mathbb{" .. string.upper(snip.captures[1]) .. "}\\)-divisor"
-		end, {})
-	}, opts
-	)
+	rational_phrase_snippet("([qr])c", "Cartier"),
+	rational_phrase_snippet("([qr])d", "divisor")
 }
 
 local phrase_specs = {
-	-- cf = "cf.~",
 	klt = "Kawamata log terminal",
 	resp = "resp.\\ ",
 	ses = "short exact sequence"

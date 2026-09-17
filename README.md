@@ -1,12 +1,13 @@
 # nvim-math-snippets
 
-A collection of snippets for [LuaSnips][luasnip].
+A [LuaSnip][luasnip] collection for TeX, Markdown, Python, Git commits, and TODO comments.
 
 Example (with [lazy.nvim][lazy]):
 
 ```lua
 {
     "L3MON4D3/LuaSnip",
+    build = "make install_jsregexp",
     dependencies = { "mathjiajia/nvim-math-snippets" },
     config = function()
         require("luasnip").setup({
@@ -18,6 +19,9 @@ Example (with [lazy.nvim][lazy]):
     end,
 }
 ```
+
+`jsregexp` enables the ECMAScript triggers used by the TeX snippets. The `eqref`
+snippet opens LSP completion when `blink.cmp` is available; Blink is optional.
 
 ## LaTeX conditions
 
@@ -43,11 +47,9 @@ Array column specifications and `alignat` / `alignedat` column counts are exclud
 Explicit math in theorem titles and citation notes is supported.
 `in_text` remains a complement, not a test for prose: it can be true in these regions.
 
-Environment names may span lines, and starred variants are recognized.
-Alignment detection matches names containing `align`, `array`, `matrix`, or `case`,
-as well as the exact name `split`, so custom variants in these families work too.
-Other math environment names match `math`, `equation`, `multline`, `gather`, or
-`tikzcd`; list names match `itemize`, `enumerate`, or `description`.
+Environment names may span lines, and starred and custom variants in these name
+families are recognized. Other math environment names match `math`, `equation`,
+`multline`, `gather`, or `tikzcd`.
 The numbering wrapper `subequations` does not enable math by itself.
 `gather`, `gathered`, and `multline` are math but do not match `in_align`, because
 the snippets using that condition insert `&`.
@@ -85,14 +87,18 @@ heuristics, which can be adjusted in `lua/math-snippets/latex.lua` if needed.
 
 ## Tests
 
-With LuaSnip, the LaTeX/Markdown parsers, and their injection queries on `runtimepath`:
+With LuaSnip (including `jsregexp` for ECMAScript triggers), the LaTeX/Markdown
+parsers, and their injection queries on `runtimepath`:
 
 ```sh
 nvim --headless -u NONE -i NONE -l tests/latex.lua
+nvim --headless -u NONE -i NONE -l tests/snippets.lua
 ```
 
-The suite exercises real parser trees, nested contexts, cursor boundaries, fresh
-edits, missing parsers, and Markdown injections without starting a highlighter.
+The condition suite exercises real parser trees, nested contexts, cursor boundaries,
+fresh edits, missing parsers, and Markdown injections without starting a highlighter.
+The snippet suite checks loading, trigger guards, dynamic expansions, visual
+selections, and optional completion integration.
 
 ## Acknowledgements
 

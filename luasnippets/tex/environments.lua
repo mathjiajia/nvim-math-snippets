@@ -1,5 +1,3 @@
-local snips, autosnips = {}, {}
-
 local tex = require("math-snippets.latex")
 local pos = require("math-snippets.position")
 local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
@@ -20,11 +18,8 @@ local env_opts = { condition = expand_line_begin * tex.in_text, show_condition =
 
 local math_opts = { condition = expand_line_begin * tex.in_math, show_condition = pos.show_line_begin * tex.in_math }
 
---- Generates a matrix snippet for LuaSnip.
--- The size (rows × columns) is taken from the captures of the trigger.
--- Each entry is an insert node, labeled by its position (e.g., "2x3" for row 2, column 3).
--- Rows are separated by '\\', except for the last row (no trailing '\\').
-local generate_matrix = function (_, snip)
+-- Restore keys keep cell contents when the matrix is regenerated.
+local function generate_matrix(_, snip)
 	local rows = tonumber(snip.captures[2])
 	local cols = tonumber(snip.captures[3])
 	local nodes = {}
@@ -39,7 +34,6 @@ local generate_matrix = function (_, snip)
 			insert_index = insert_index + 1
 		end
 
-		-- Only add a line break if not the last row
 		if row ~= rows then
 			table.insert(nodes, t({ " \\\\", "\t" }))
 		end
@@ -48,26 +42,14 @@ local generate_matrix = function (_, snip)
 	return sn(nil, nodes)
 end
 
--- Improved LuaSnip function for a LaTeX `cases` environment
--- Automatically handles a default of 2 rows,
--- and only inserts line breaks between rows.
-local generate_cases = function (_, snip)
-	-- Number of cases (rows), default to 2 if capture is empty or invalid
+local function generate_cases(_, snip)
 	local rows = tonumber(snip.captures[1]) or 2
 	local nodes = {}
-	local ins_index = 1
 
 	for row = 1, rows do
-		-- Left-hand expression
-		table.insert(nodes, r(ins_index, row .. "l", i(1)))
-		ins_index = ins_index + 1
-
-		-- Alignment (&) and right-hand result
+		table.insert(nodes, r(2 * row - 1, row .. "l", i(1)))
 		table.insert(nodes, t(" & "))
-		table.insert(nodes, r(ins_index, row .. "r", i(1)))
-		ins_index = ins_index + 1
-
-		-- Only add a line break if not the last row
+		table.insert(nodes, r(2 * row, row .. "r", i(1)))
 		if row ~= rows then
 			table.insert(nodes, t({ " \\\\", "\t" }))
 		end
@@ -86,7 +68,7 @@ local function env_snippet(trig, env)
 end
 
 local function labeled_env_snippet(trig, env)
-	local context = { trig = trig, name = trig, desc = "Labeled" .. trig .. " Environment" }
+	local context = { trig = trig, name = trig, desc = "Labeled " .. trig .. " Environment" }
 	return s(
 		context,
 		fmta(
@@ -113,11 +95,15 @@ local function sec_snippet(trig, name)
 	)
 end
 
-snips = {
+local function matrix_name(_, snip)
+	return snip.captures[1] .. "matrix"
+end
+
+local snips = {
 	s({
 		trig = "([bBpvV])mat_(%d+)x_(%d+)([ar])",
 		name = "[bBpvV]matrix",
-		dscr = "matrices",
+		desc = "matrices",
 		trigEngine = "pattern",
 		hidden = true
 	},
@@ -125,9 +111,7 @@ snips = {
 			\begin{<>}<>
 				<>
 			\end{<>}]], {
-			f(function (_, snip)
-				return snip.captures[1] .. "matrix"
-			end),
+			f(matrix_name),
 			f(function (_, snip)
 				if snip.captures[4] == "a" then
 					local out = string.rep("c", tonumber(snip.captures[3]) - 1)
@@ -136,16 +120,12 @@ snips = {
 				return ""
 			end),
 			d(1, generate_matrix),
-			f(function (_, snip)
-				return snip.captures[1] .. "matrix"
-			end)
+			f(matrix_name)
 		}), math_opts)
 }
 
-autosnips = {
-	------------
-	-- BEAMER --
-	------------
+local autosnips = {
+	-- Beamer
 	s(
 		{ trig = "bfr", name = "Beamer Frame Environment" },
 		fmta([[
@@ -164,9 +144,7 @@ autosnips = {
 			]], { i(1), i(0) }), beamer_opts
 	),
 
-	---------
-	-- ENV --
-	---------
+	-- Environments
 	s({
 		trig = "beg",
 		name = "begin/end",
@@ -186,7 +164,7 @@ autosnips = {
 	),
 
 	s(
-		{ trig = "(%d?)cases", name = "eases", desc = "cases", trigEngine = "pattern", hidden = true },
+		{ trig = "(%d?)cases", name = "cases", desc = "cases", trigEngine = "pattern", hidden = true },
 		fmta([[
 			\begin{cases}
 				<>
@@ -264,7 +242,7 @@ autosnips = {
 
 	s({
 		trig = "beq",
-		desc = "labeled_equation"
+		desc = "labeled equation"
 	}, fmta([[
 			\begin{equation}\zlabel{eq:<>}
 				<>
@@ -274,12 +252,11 @@ autosnips = {
 
 local sec_specs = { cha = "chapter", sec = "section", ssec = "section*", sub = "subsection", ssub = "subsection*" }
 
-for k, v in pairs(sec_specs) do
-	table.insert(snips, sec_snippet(k, v))
+for trig, command in pairs(sec_specs) do
+	table.insert(snips, sec_snippet(trig, command))
 end
 
 local env_specs = {
-	-- beq = "equation",
 	bseq = "equation*",
 	proof = "proof",
 	conj = "conjecture",
@@ -301,15 +278,11 @@ local labeled_env_specs = {
 	lthm = "theorem"
 }
 
-local env_snippets = {}
-
-for k, v in pairs(env_specs) do
-	table.insert(env_snippets, env_snippet(k, v))
+for trig, env in pairs(env_specs) do
+	table.insert(autosnips, env_snippet(trig, env))
 end
-for k, v in pairs(labeled_env_specs) do
-	table.insert(env_snippets, labeled_env_snippet(k, v))
+for trig, env in pairs(labeled_env_specs) do
+	table.insert(autosnips, labeled_env_snippet(trig, env))
 end
-
-vim.list_extend(autosnips, env_snippets)
 
 return snips, autosnips

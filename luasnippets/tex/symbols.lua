@@ -211,9 +211,10 @@ autosnips = {
 		-- opts
 	),
 
-	s({ trig = "==", name = "align equls", wordTrig = false, hidden = true }, { t("& = ") }, { condition = tex.in_align }),
+	s(
+		{ trig = "==", name = "align equals", wordTrig = false, hidden = true }, { t("& = ") }, { condition = tex.in_align }
+	),
 	s({ trig = "ar", name = "normal arrows", hidden = true }, { t("\\ar["), i(1), t("]") }, { condition = tex.in_tikzcd }),
-
 	s({ trig = "(%a)ii", name = "alph i", wordTrig = false, trigEngine = "pattern", hidden = true }, {
 		f(function (_, snip)
 			return snip.captures[1] .. "_{i}"

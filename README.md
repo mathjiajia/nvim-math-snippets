@@ -19,7 +19,73 @@ Example (with [lazy.nvim][lazy]):
 }
 ```
 
-## mathematics
+## LaTeX conditions
+
+`require("math-snippets.latex")` provides composable LuaSnip conditions:
+
+| Condition | When it matches |
+| --- | --- |
+| `in_math` | Inline/display math, math environments, matrices, cases, `tikzcd`, and `\ensuremath{...}` |
+| `in_text` | The complement of `in_math`, including when no parser is available |
+| `in_align` | Math in an environment accepting alignment tabs, such as `align`, `aligned`, `array`, matrices, and cases |
+| `in_bullets` | Text in `itemize`, `enumerate`, or `description` |
+| `in_tikzcd` | Math in a `tikzcd` environment |
+
+The nearest math/text scope takes precedence: `\text{...}` disables math snippets,
+while explicit math nested inside it enables them again.
+Text-formatting commands, boxes, operator names, tags, and siunitx arguments also
+disable math snippets.
+Comments, verbatim/code regions, labels (including `\zlabel` / `\zcref`), citation
+keys, paths, and environment names disable the positive conditions.
+Array column specifications and `alignat` / `alignedat` column counts are excluded.
+Explicit math in theorem titles and citation notes is supported.
+`in_text` remains a complement, not a test for prose: it can be true in these regions.
+
+Environment names may span lines, and starred variants are recognized.
+`gather`, `gathered`, and `multline` are math but do not match `in_align`, because
+the snippets using that condition insert `&`.
+Closing a text argument resumes the enclosing math scope; closing a formula or
+environment leaves its scope immediately.
+
+Detection uses Neovim's native [Tree-sitter API][treesitter-api], with synchronous
+parsing of the cursor line's injections and one shared result per buffer change
+and cursor position.
+No highlighter or `nvim-treesitter.configs` module is needed.
+LaTeX injected into Markdown works when the host parsers and injection queries
+are installed; the host buffer is never forced through the LaTeX parser.
+
+Install the `latex` parser, and `markdown` / `markdown_inline` for Markdown math.
+With the current [`nvim-treesitter` main branch][treesitter], parser installation uses:
+
+```lua
+require("nvim-treesitter").install({ "latex", "markdown", "markdown_inline" })
+```
+
+Follow that plugin's current Neovim requirements and run `:TSUpdate` when updating it.
+The conditions use native APIs available in Neovim 0.11 and later; the parser
+installer can require a newer version.
+Parsers installed by other managers also work.
+`tex` and `plaintex` filetypes default to the `latex` parser unless explicitly mapped
+to another language.
+
+Missing/unavailable parsers safely return false for positive conditions.
+Incomplete formulas are recognized when Tree-sitter recovers a math node with a
+missing closer.
+Malformed input that only produces `ERROR` nodes, such as an unmatched `\begin`,
+may not be recognized until the surrounding syntax is completed.
+Custom TeX macros and environments are not expanded; their meaning must be added
+to the anchored command/environment patterns in `lua/math-snippets/latex.lua` if needed.
+
+## Tests
+
+With LuaSnip, the LaTeX/Markdown parsers, and their injection queries on `runtimepath`:
+
+```sh
+nvim --headless -u NONE -i NONE -l tests/latex.lua
+```
+
+The suite exercises real parser trees, nested contexts, cursor boundaries, fresh
+edits, missing parsers, and Markdown injections without starting a highlighter.
 
 ## Acknowledgements
 
@@ -30,3 +96,5 @@ Inspired by
 
 [lazy]: https://github.com/folke/lazy.nvim
 [luasnip]: https://github.com/L3MON4D3/LuaSnip
+[treesitter-api]: https://neovim.io/doc/user/treesitter/
+[treesitter]: https://github.com/nvim-treesitter/nvim-treesitter/tree/main

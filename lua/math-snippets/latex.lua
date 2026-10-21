@@ -303,11 +303,9 @@ local function get_context()
 	-- Resolve each time: filetypes and language registrations can change without edits.
 	filetype_opts.buf = bufnr
 	local lang = ts.language.get_lang(api.nvim_get_option_value("filetype", filetype_opts))
-	-- TeX filetype aliases may not be registered when using standalone parsers.
-	if lang == "tex" or lang == "plaintex" then
-		lang = "latex"
-	end
-	local parser = ts.get_parser(bufnr, lang)
+	-- Without a language, get_parser() returns whatever parser the buffer had before
+	-- (e.g. LaTeX after :set filetype=), so treat it as a buffer without a parser.
+	local parser = lang and ts.get_parser(bufnr, lang)
 	if not parser then
 		return EMPTY
 	end

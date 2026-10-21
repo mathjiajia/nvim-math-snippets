@@ -4,6 +4,9 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
 vim.opt.virtualedit = "onemore"
 
+-- -u NONE skips the TeX language mappings supplied by the editor setup.
+vim.treesitter.language.register("latex", { "tex", "plaintex" })
+
 local ls = require("luasnip")
 local session = require("luasnip.session")
 local snip_env = ls.get_snip_env()

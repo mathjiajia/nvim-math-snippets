@@ -77,9 +77,9 @@ require("nvim-treesitter").install({ "latex", "markdown", "markdown_inline" })
 ```
 
 Follow that plugin's current Neovim requirements and run `:TSUpdate` when updating it.
-Parsers installed by other managers also work.
-`tex` and `plaintex` filetypes default to the `latex` parser unless explicitly mapped
-to another language.
+Parsers installed by other managers also work with the appropriate Tree-sitter
+filetype mappings. The module uses those mappings directly; TeX filetypes such as
+`tex` and `plaintex` should already resolve to `latex` in your editor setup.
 
 Missing/unavailable parsers safely return false for positive conditions.
 Incomplete formulas are recognized when Tree-sitter recovers a math node with a

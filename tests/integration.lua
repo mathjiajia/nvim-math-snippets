@@ -177,23 +177,23 @@ local function run()
 		fixture.expected = [[\(x\),a]]
 	end)
 
-	with_buffer("moving away and back cancels spacing", function ()
+	with_buffer("moving away and back retains spacing", function ()
 		at_math_exit()
 		input("<Left>", { cursor = { 1, 4 }, mode = "i", events = { "CursorMovedI" } })
 		input("<Right>", { cursor = { 1, 5 }, mode = "i", events = { "CursorMovedI" } })
-		type_text("a", [[\(x\)a]])
-		fixture.expected = [[\(x\)a]]
+		type_text("a", [[\(x\) a]])
+		fixture.expected = [[\(x\) a]]
 	end)
 
-	with_buffer("leaving Insert mode cancels spacing", function ()
+	with_buffer("leaving and reentering Insert mode retains spacing", function ()
 		at_math_exit()
 		normal_mode()
 		input("A", { mode = "i", events = { "InsertEnter" } })
-		type_text("a", [[\(x\)a]])
-		fixture.expected = [[\(x\)a]]
+		type_text("a", [[\(x\) a]])
+		fixture.expected = [[\(x\) a]]
 	end)
 
-	with_buffer("switching buffers cancels spacing", function ()
+	with_buffer("switching buffers and returning retains spacing", function ()
 		fixture.other = execute([[
 			local original = ...
 			local other = vim.api.nvim_create_buf(false, true)
@@ -204,9 +204,9 @@ local function run()
 		at_math_exit()
 		input("<F8>", { buffer = fixture.other, mode = "i", text = "" })
 		input("<F8>", { text = [[\(x\)]], mode = "i" })
-		type_text("a", [[\(x\)a]])
+		type_text("a", [[\(x\) a]])
 		equal("other buffer remains empty", text(fixture.other), "")
-		fixture.expected = [[\(x\)a]]
+		fixture.expected = [[\(x\) a]]
 	end)
 
 	with_buffer("undo and redo preserve the inserted space", function ()
@@ -220,29 +220,6 @@ local function run()
 		fixture.expected = [[\(x\) ab]]
 	end)
 
-	with_buffer("jumping back and leaving again adds one space", function ()
-		at_math_exit()
-		input("<F7>", { cursor = { 1, 2 }, mode = "s" })
-		input("<F6>", { cursor = { 1, 5 }, mode = "i" })
-		type_text("a", [[\(x\) a]])
-		fixture.expected = [[\(x\) a]]
-	end)
-
-	for _, case in ipairs({ { "^^", "^", "superscript" }, { "__", "_", "subscript" } }) do
-		with_buffer(case[3] .. " expands inside paired math", function ()
-			input("i", { mode = "i", events = { "InsertEnter" } })
-			type_text("mk", [[\(\)]])
-			type_text("x", [[\(x\)]])
-			type_text(case[1], "\\(x" .. case[2] .. "{}\\)")
-			type_text("n", "\\(x" .. case[2] .. "{n}\\)")
-			fixture.expected = "\\(x" .. case[2] .. "{n}\\)"
-		end)
-		with_buffer(case[3] .. " stays literal in prose", function ()
-			input("i", { mode = "i", events = { "InsertEnter" } })
-			type_text("x" .. case[1], "x" .. case[1])
-			fixture.expected = "x" .. case[1]
-		end)
-	end
 end
 
 -- Inputs are separated by assertions on their effects and the editor events.

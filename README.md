@@ -85,10 +85,6 @@ Incomplete formulas are recognized when Tree-sitter recovers a math node with a
 missing closer.
 Malformed input that only produces `ERROR` nodes, such as an unmatched `\begin`,
 may not be recognized until the surrounding syntax is completed.
-The `^^` and `__` snippets require math context. They work with paired delimiters
-and closed math environments; in an unfinished formula, typing a script marker can
-erase the recovered math node and prevent expansion. Use `mk` to create paired
-inline-math delimiters before entering these triggers.
 Custom TeX macros and environments are not expanded; names follow these family
 heuristics, which can be adjusted in `lua/math-snippets/latex.lua` if needed.
 

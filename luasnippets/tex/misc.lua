@@ -1,53 +1,19 @@
 local tex = require("math-snippets.latex")
 local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
 local pattern_engine = require("luasnip.nodes.util.trig_engines").pattern
-local api = vim.api
 
 local opts = { condition = tex.in_text }
 
-local function appended_space_after_insert(snip)
-	local buffer = api.nvim_get_current_buf()
-	local group = api.nvim_create_augroup("MathSnippetsInlineMathSpace", { clear = false })
-	local function clear()
-		api.nvim_clear_autocmds({ group = group, buffer = buffer })
-	end
-	-- Leaving the same snippet again must replace any pending spacing callback.
-	clear()
-	local exit = snip.insert_nodes[0]:get_buf_position()
-	local tick = api.nvim_buf_get_changedtick(buffer)
-	local function at_exit()
-		local cursor = api.nvim_win_get_cursor(0)
-		return api.nvim_get_current_buf() == buffer and cursor[1] == exit[1] + 1
-			and cursor[2] == exit[2] and api.nvim_buf_get_changedtick(buffer) == tick
-	end
-	api.nvim_create_autocmd("InsertCharPre", {
+local function appended_space_after_insert()
+	vim.api.nvim_create_autocmd("InsertCharPre", {
 		callback = function ()
-			local add_space = at_exit() and vim.v.char:find("%a")
-			clear()
-			if add_space then
+			if vim.v.char:find("%a") then
 				vim.v.char = " " .. vim.v.char
 			end
 		end,
-		group = group,
-		buffer = buffer,
+		buf = 0,
 		once = true,
 		desc = "Auto Add a Space after Inline Math"
-	})
-	api.nvim_create_autocmd({ "InsertLeave", "BufLeave", "BufWipeout" }, {
-		group = group,
-		buffer = buffer,
-		callback = clear,
-		desc = "Cancel Pending Inline Math Space"
-	})
-	api.nvim_create_autocmd("CursorMovedI", {
-		group = group,
-		buffer = buffer,
-		callback = function ()
-			if not at_exit() then
-				clear()
-			end
-		end,
-		desc = "Cancel Inline Math Space after Moving"
 	})
 end
 

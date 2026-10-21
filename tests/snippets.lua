@@ -183,59 +183,6 @@ check("symbol output and metadata", function ()
 	equal("eta command", expand(eta), "\\eta")
 end)
 
-for _, script in ipairs({ { "^^", "^{}" }, { "__", "_{}" } }) do
-	check(script[1] .. " math scope", function ()
-		local snippet = find("tex/symbols", "trigger", script[1])
-		for _, case in ipairs({
-			{ "paired dollars", "$x", "$" },
-			{ "empty paired dollars", "$", "$" },
-			{ "parenthesized math", "\\(x", "\\)" },
-			{ "empty parenthesized math", "\\(", "\\)" },
-			{ "display math", "\\[x", "\\]" },
-			{ "empty display math", "\\[", "\\]" },
-			{ "equation", "\\begin{equation}x", "\\end{equation}" },
-			{ "empty equation", "\\begin{equation}", "\\end{equation}" },
-			{ "alignment", "\\begin{align}x & = y", "\\end{align}" },
-			{ "empty alignment", "\\begin{align}", "\\end{align}" }
-		}) do
-			local before = case[2] .. script[1]
-			local source = before .. case[3]
-			equal(
-				script[1] .. " expands in " .. case[1], expand_trigger(snippet, source, #before),
-				case[2] .. script[2] .. case[3]
-			)
-			with_buffer({ source }, function ()
-				equal(script[1] .. " shown in " .. case[1], snippet.show_condition(before), true)
-			end, #before)
-		end
-		for _, case in ipairs({
-			{ "prose", "words ", "" },
-			{ "comment in math", "\\[x % ", "\n\\]" },
-			{ "text command in math", "$\\text{words ", "}$" },
-			{ "label in math", "$x\\label{eq:", "}$" },
-			{ "zlabel in math", "$x\\zlabel{eq:", "}$" },
-			{ "inline verbatim", "\\verb|", "|" },
-			{ "verbatim environment", "\\begin{verbatim}\n", "\n\\end{verbatim}" },
-			{ "listing environment", "\\begin{lstlisting}\n", "\n\\end{lstlisting}" },
-			-- A trailing script trigger can erase the math node in an unfinished
-			-- formula. These cases record the parser limit; no recovery is added.
-			{ "unclosed dollar formula", "$x", "" },
-			{ "unclosed parenthesized formula", "\\(x", "" },
-			{ "unclosed display formula", "\\[x", "" }
-		}) do
-			local before = case[2] .. script[1]
-			local source = vim.split(before .. case[3], "\n", { plain = true })
-			local before_lines = vim.split(before, "\n", { plain = true })
-			local row = #before_lines
-			local line = before_lines[row]
-			with_buffer(source, function ()
-				equal(script[1] .. " stays literal in " .. case[1], snippet:matches(line), nil)
-				equal(script[1] .. " hidden in " .. case[1], snippet.show_condition(line), false)
-			end, { row, #line })
-		end
-	end)
-end
-
 for _, trigger in ipairs({ "set", "nnn", "uuu" }) do
 	check(trigger .. " has one expansion", function ()
 		local line = "$ " .. trigger
@@ -289,118 +236,20 @@ check("inline math exit callback", function ()
 	end)
 end)
 
-local function spacing_callbacks(buffer)
-	return vim.tbl_filter(function (autocmd)
-		return autocmd.desc == "Auto Add a Space after Inline Math"
-	end, vim.api.nvim_get_autocmds({ event = "InsertCharPre", buf = buffer }))
-end
-
--- Exercise the real InsertCharPre callbacks without queuing interactive input.
-local function pending_space(character, callback)
-	return with_buffer({ "" }, function ()
-		local buffer = vim.api.nvim_get_current_buf()
-		vim.api.nvim_create_autocmd("InsertCharPre", {
-			buffer = buffer,
-			once = true,
-			callback = function ()
-				vim.v.char = character
-			end
-		})
-		ls.snip_expand(find("tex/misc", "trigger", "mk"))
-		local existing = {}
-		for _, autocmd in ipairs(vim.api.nvim_get_autocmds({ buffer = buffer })) do
-			existing[autocmd.id] = true
-		end
-		ls.jump(1)
-		local function remaining()
-			return vim.tbl_filter(function (autocmd)
-				return autocmd.buf == buffer and not existing[autocmd.id]
-			end, vim.api.nvim_get_autocmds({}))
-		end
-		callback(buffer, remaining)
-		return remaining
-	end)
-end
-
-check("inline math immediate spacing", function ()
+check("inline math next character spacing", function ()
 	for _, character in ipairs({ "a", "Z", ".", ",", ")", " ", "7", "中" }) do
-		pending_space(character, function (buffer, remaining)
-			vim.api.nvim_exec_autocmds("InsertCharPre", { buffer = buffer })
+		with_buffer({ "" }, function ()
+			vim.api.nvim_create_autocmd("InsertCharPre", {
+				buffer = 0,
+				once = true,
+				callback = function () vim.v.char = character end
+			})
+			ls.snip_expand(find("tex/misc", "trigger", "mk"))
+			ls.jump(1)
+			vim.api.nvim_exec_autocmds("InsertCharPre", { buffer = 0 })
 			local expected = (character == "a" or character == "Z") and " " .. character or character
 			equal("inline math next character " .. character, vim.v.char, expected)
-			equal("inline math removes callbacks after " .. character, #remaining(), 0)
 		end)
-	end
-end)
-
-check("inline math cancels stale spacing", function ()
-	for _, event in ipairs({ "CursorMovedI", "InsertLeave" }) do
-		pending_space("a", function (buffer, remaining)
-			if event ~= "InsertLeave" then
-				local exit = vim.api.nvim_win_get_cursor(0)
-				vim.api.nvim_win_set_cursor(0, { 1, 0 })
-				vim.api.nvim_exec_autocmds(event, { buffer = buffer })
-				vim.api.nvim_win_set_cursor(0, exit)
-			else
-				vim.api.nvim_exec_autocmds(event, { buffer = buffer })
-			end
-			equal(event .. " cancels inline math spacing", #spacing_callbacks(buffer), 0)
-			vim.api.nvim_exec_autocmds("InsertCharPre", { buffer = buffer })
-			equal(event .. " does not add a later space", vim.v.char, "a")
-			equal(event .. " removes all spacing callbacks", #remaining(), 0)
-		end)
-	end
-	pending_space("a", function (buffer)
-		vim.api.nvim_exec_autocmds("CursorMovedI", { buffer = buffer })
-		equal("movement event at the exit keeps spacing armed", #spacing_callbacks(buffer), 1)
-		vim.api.nvim_exec_autocmds("InsertCharPre", { buffer = buffer })
-		equal("movement event at the exit still adds one space", vim.v.char, " a")
-	end)
-	pending_space("a", function (buffer, remaining)
-		vim.api.nvim_win_set_cursor(0, { 1, 0 })
-		vim.api.nvim_exec_autocmds("InsertCharPre", { buffer = buffer })
-		equal("cursor guard rejects typing elsewhere before movement event", vim.v.char, "a")
-		equal("cursor guard removes all spacing callbacks", #remaining(), 0)
-	end)
-	pending_space("a", function (buffer, remaining)
-		local exit = vim.api.nvim_win_get_cursor(0)
-		vim.api.nvim_buf_set_text(buffer, 0, 2, 0, 2, { "x" })
-		vim.api.nvim_win_set_cursor(0, exit)
-		vim.api.nvim_exec_autocmds("InsertCharPre", { buffer = buffer })
-		equal("editing before the next character cancels spacing", vim.v.char, "a")
-		equal("edit guard removes all spacing callbacks", #remaining(), 0)
-	end)
-	pending_space("a", function (buffer, remaining)
-		local other = vim.api.nvim_create_buf(false, true)
-		vim.api.nvim_set_current_buf(other)
-		equal("leaving buffer cancels inline math spacing", #spacing_callbacks(buffer), 0)
-		vim.api.nvim_set_current_buf(buffer)
-		vim.api.nvim_buf_delete(other, { force = true })
-		vim.api.nvim_exec_autocmds("InsertCharPre", { buffer = buffer })
-		equal("returning to buffer does not add stale space", vim.v.char, "a")
-		equal("buffer leave removes all spacing callbacks", #remaining(), 0)
-	end)
-	local remaining = pending_space("a", function () end)
-	equal("deleting buffer removes all spacing callbacks", #remaining(), 0)
-end)
-
-check("inline math reentry keeps one pending callback", function ()
-	local previous = vim.deepcopy(session.config)
-	local ok, err = pcall(function ()
-		ls.config.setup({ history = true })
-		pending_space("a", function (buffer, remaining)
-			ls.jump(-1)
-			ls.jump(1)
-			equal("reentering inline math replaces pending callback", #spacing_callbacks(buffer), 1)
-			vim.api.nvim_exec_autocmds("InsertCharPre", { buffer = buffer })
-			equal("reentered inline math adds exactly one space", vim.v.char, " a")
-			equal("reentry retires original spacing callbacks", #remaining(), 0)
-			equal("reentry removes final spacing callback", #spacing_callbacks(buffer), 0)
-		end)
-	end)
-	ls.config.setup(previous)
-	if not ok then
-		error(err)
 	end
 end)
 

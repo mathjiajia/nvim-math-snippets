@@ -1,5 +1,5 @@
 local tex = require("math-snippets.latex")
-local auto_trigger = require("math-snippets.util").auto_trigger
+local command_trigger = require("math-snippets.util").command_trigger
 
 local math_opts = { condition = tex.in_math, show_condition = tex.in_math }
 local text_opts = { condition = tex.in_text, show_condition = tex.in_text }
@@ -22,8 +22,7 @@ local function postfix_snippet(trig, command, description, priority)
 		match_pattern = [[[%w%.%_%-%"%']*$]]
 	}
 	if prefix:find(trig) == 2 then
-		context.trigEngine = "ecma"
-		context.trig = auto_trigger(trig)
+		context.trigEngine = command_trigger
 		context.hidden = true
 	end
 	return postfix(context, { d(1, generate_postfix_dynamicnode, {}, { user_args = { prefix } }) }, math_opts)

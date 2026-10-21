@@ -19,6 +19,7 @@ local function bracket_snippet(trig, name, template)
 		name = name,
 		desc = name .. " delimiters",
 		trigEngine = "pattern",
+		trigEngineOpts = { max_len = #trig + 1 },
 		hidden = true,
 		condition = tex.in_math,
 		show_condition = tex.in_math

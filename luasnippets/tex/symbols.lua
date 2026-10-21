@@ -5,8 +5,7 @@ local math_opts = { condition = tex.in_math, show_condition = tex.in_math }
 
 local function guard_command(context, cmd)
 	if cmd:find(context.trig) == 2 then -- command always starts with backslash
-		context.trigEngine = "ecma"
-		context.trig = util.auto_trigger(context.trig)
+		context.trigEngine = util.command_trigger
 		context.hidden = true
 	end
 end
@@ -43,8 +42,8 @@ local function arrow_snippet(trig, name, command)
 	)
 end
 
-local function indexed_greek_snippet(trig, name, template)
-	return s({ trig = trig, name = name, trigEngine = "pattern", hidden = true }, {
+local function indexed_greek_snippet(trig, name, template, length)
+	return s({ trig = trig, name = name, trigEngine = "pattern", trigEngineOpts = { max_len = length }, hidden = true }, {
 		f(function (_, snip)
 			return template:format(snip.captures[1])
 		end, {})
@@ -57,17 +56,18 @@ local autosnips = {
 	arrow_snippet("emb", "embedding map arrow", "hookrightarrow"),
 	s({ trig = "\\varpii", name = "\\varpi_i", hidden = true }, { t("\\varpi_{i}") }, math_opts),
 	s({ trig = "\\varphii", name = "\\varphi_i", hidden = true }, { t("\\varphi_{i}") }, math_opts),
-	indexed_greek_snippet("\\([xX])ii", "\\xi_{i}", "\\%si_{i}"),
-	indexed_greek_snippet("\\([pP])ii", "\\pi_{i}", "\\%si_{i}"),
-	indexed_greek_snippet("\\([pP])hii", "\\phi_{i}", "\\%shi_{i}"),
-	indexed_greek_snippet("\\([cC])hii", "\\chi_{i}", "\\%shi_{i}"),
-	indexed_greek_snippet("\\([pP])sii", "\\psi_{i}", "\\%ssi_{i}"),
+	indexed_greek_snippet("\\([xX])ii", "\\xi_{i}", "\\%si_{i}", 4),
+	indexed_greek_snippet("\\([pP])ii", "\\pi_{i}", "\\%si_{i}", 4),
+	indexed_greek_snippet("\\([pP])hii", "\\phi_{i}", "\\%shi_{i}", 5),
+	indexed_greek_snippet("\\([cC])hii", "\\chi_{i}", "\\%shi_{i}", 5),
+	indexed_greek_snippet("\\([pP])sii", "\\psi_{i}", "\\%ssi_{i}", 5),
 
 	s({
 		trig = "O([A-NP-Za-z])",
 		name = "local ring, structure sheaf",
 		wordTrig = false,
 		trigEngine = "pattern",
+		trigEngineOpts = { max_len = 2 },
 		hidden = true
 	},
 		{
@@ -82,6 +82,7 @@ local autosnips = {
 		desc = "Subscript with a single number.",
 		wordTrig = false,
 		trigEngine = "pattern",
+		trigEngineOpts = { max_len = 2 },
 		hidden = true
 	},
 		{
@@ -96,6 +97,7 @@ local autosnips = {
 		desc = "Subscript with two numbers.",
 		wordTrig = false,
 		trigEngine = "pattern",
+		trigEngineOpts = { max_len = 4 },
 		hidden = true
 	},
 		{
@@ -105,47 +107,83 @@ local autosnips = {
 		}, math_opts),
 
 	s({ trig = "MK", name = "Mori-Kleiman cone", hidden = true }, { t("\\cNE("), i(1), t(")") }, math_opts),
-	s({ trig = "([QRZ])P", name = "positive", wordTrig = false, trigEngine = "pattern", hidden = true }, {
-		f(function (_, snip)
-			return "\\mathbb{" .. snip.captures[1] .. "}^{>0}"
-		end, {})
-	}, math_opts
-	),
+	s({
+		trig = "([QRZ])P",
+		name = "positive",
+		wordTrig = false,
+		trigEngine = "pattern",
+		trigEngineOpts = { max_len = 2 },
+		hidden = true
+	},
+		{
+			f(function (_, snip)
+				return "\\mathbb{" .. snip.captures[1] .. "}^{>0}"
+			end, {})
+		}, math_opts),
 
-	s({ trig = "([QRZ])N", name = "negative", wordTrig = false, trigEngine = "pattern", hidden = true }, {
-		f(function (_, snip)
-			return "\\mathbb{" .. snip.captures[1] .. "}^{<0}"
-		end, {})
-	}, math_opts
-	),
+	s({
+		trig = "([QRZ])N",
+		name = "negative",
+		wordTrig = false,
+		trigEngine = "pattern",
+		trigEngineOpts = { max_len = 2 },
+		hidden = true
+	},
+		{
+			f(function (_, snip)
+				return "\\mathbb{" .. snip.captures[1] .. "}^{<0}"
+			end, {})
+		}, math_opts),
 
-	s({ trig = "([qr])le", name = "linearly equivalent", wordTrig = false, trigEngine = "pattern", hidden = true }, {
-		f(function (_, snip)
-			return "\\sim_{\\mathbb{" .. string.upper(snip.captures[1]) .. "}}"
-		end, {})
-	}, math_opts
-	),
+	s({
+		trig = "([qr])le",
+		name = "linearly equivalent",
+		wordTrig = false,
+		trigEngine = "pattern",
+		trigEngineOpts = {
+			max_len = 3
+		},
+		hidden = true
+	},
+		{
+			f(function (_, snip)
+				return "\\sim_{\\mathbb{" .. string.upper(snip.captures[1]) .. "}}"
+			end, {})
+		}, math_opts),
 
-	-- HACK: <Jia> do not use condition since it cannot be triggered
-	s({ trig = "^^", name = "auto superscript", wordTrig = false, hidden = true }, fmta([[^{<>}<>]], { i(1), i(0) })),
-	s({ trig = "__", name = "auto subscript", wordTrig = false, hidden = true }, fmta([[_{<>}<>]], { i(1), i(0) })),
+	s({ trig = "^^", name = "auto superscript", wordTrig = false, hidden = true }, fmta([[^{<>}<>]], { i(1), i(0) }), math_opts),
+	s({ trig = "__", name = "auto subscript", wordTrig = false, hidden = true }, fmta([[_{<>}<>]], { i(1), i(0) }), math_opts),
 
 	s(
 		{ trig = "==", name = "align equals", wordTrig = false, hidden = true }, { t("& = ") }, { condition = tex.in_align }
 	),
 	s({ trig = "ar", name = "normal arrows", hidden = true }, { t("\\ar["), i(1), t("]") }, { condition = tex.in_tikzcd }),
-	s({ trig = "(%a)ii", name = "alph i", wordTrig = false, trigEngine = "pattern", hidden = true }, {
-		f(function (_, snip)
-			return snip.captures[1] .. "_{i}"
-		end, {})
-	}, math_opts
-	),
-	s({ trig = "(%a)jj", name = "alph j", wordTrig = false, trigEngine = "pattern", hidden = true }, {
-		f(function (_, snip)
-			return snip.captures[1] .. "_{j}"
-		end, {})
-	}, math_opts
-	)
+	s({
+		trig = "(%a)ii",
+		name = "alph i",
+		wordTrig = false,
+		trigEngine = "pattern",
+		trigEngineOpts = { max_len = 3 },
+		hidden = true
+	},
+		{
+			f(function (_, snip)
+				return snip.captures[1] .. "_{i}"
+			end, {})
+		}, math_opts),
+	s({
+		trig = "(%a)jj",
+		name = "alph j",
+		wordTrig = false,
+		trigEngine = "pattern",
+		trigEngineOpts = { max_len = 3 },
+		hidden = true
+	},
+		{
+			f(function (_, snip)
+				return snip.captures[1] .. "_{j}"
+			end, {})
+		}, math_opts)
 }
 
 local single_command_math_specs = {

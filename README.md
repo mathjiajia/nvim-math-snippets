@@ -9,7 +9,6 @@ Example (with [lazy.nvim][lazy]):
 ```lua
 {
     "L3MON4D3/LuaSnip",
-    build = "make install_jsregexp",
     dependencies = { "mathjiajia/nvim-math-snippets" },
     config = function()
         require("luasnip").setup({
@@ -22,8 +21,8 @@ Example (with [lazy.nvim][lazy]):
 }
 ```
 
-`jsregexp` enables the ECMAScript triggers used by the TeX snippets. The `eqref`
-snippet opens LSP completion when `blink.cmp` is available; Blink is optional.
+These snippets do not require `jsregexp`. The `eqref` snippet opens LSP completion
+when `blink.cmp` is available; Blink is optional.
 
 Visual-selection snippets use LuaSnip's `LS_SELECT_RAW`. Configure
 `cut_selection_keys` in LuaSnip to choose the visual-mode mapping that stores the
@@ -86,24 +85,80 @@ Incomplete formulas are recognized when Tree-sitter recovers a math node with a
 missing closer.
 Malformed input that only produces `ERROR` nodes, such as an unmatched `\begin`,
 may not be recognized until the surrounding syntax is completed.
+The `^^` and `__` snippets require math context. They work with paired delimiters
+and closed math environments; in an unfinished formula, typing a script marker can
+erase the recovered math node and prevent expansion. Use `mk` to create paired
+inline-math delimiters before entering these triggers.
 Custom TeX macros and environments are not expanded; names follow these family
 heuristics, which can be adjusted in `lua/math-snippets/latex.lua` if needed.
 
 ## Tests
 
-With LuaSnip (including `jsregexp` for ECMAScript triggers), the LaTeX/Lua/Markdown
-parsers, and their injection queries on `runtimepath`:
+Run all correctness suites from the repository root with LuaSnip and the
+LaTeX/Lua/Markdown parsers and queries installed:
 
 ```sh
-nvim --headless -u NONE -i NONE -l tests/latex.lua
-nvim --headless -u NONE -i NONE -l tests/snippets.lua
+nvim --headless -u NONE -i NONE -l tests/run.lua
 ```
+
+The runner discovers the installed dependency roots, then passes explicit runtime
+paths to fresh processes for the condition, snippet, and integration suites.
+User configuration and plugin startup are disabled; state, cache, data, and logs
+use a temporary directory. Dependencies are not downloaded. To select dependency
+roots yourself, repeat `--runtimepath` for LuaSnip, parsers, and queries:
+
+```sh
+nvim --headless -u NONE -i NONE -l tests/run.lua \
+  --runtimepath /path/to/LuaSnip \
+  --runtimepath /path/to/parser-runtime \
+  --runtimepath /path/to/query-runtime
+```
+
+Record or replay the dependency environment:
+
+```sh
+nvim --headless -u NONE -i NONE -l tests/run.lua --record /tmp/math-snippets-env.json
+nvim --headless -u NONE -i NONE -l tests/run.lua --environment /tmp/math-snippets-env.json
+```
+
+The JSON report records the Neovim executable/version, LuaSnip source/version when
+available, parser revisions/ABIs, runtime and Lua package paths, and SHA-256
+fingerprints of dependency files. Replay uses the recorded executable and absolute
+paths, which must still exist. It verifies file contents, symlink targets, and the
+dependency inventory before running tests, including optional `jsregexp` artifacts
+when installed. File fingerprints identify dependencies that lack version metadata.
 
 The condition suite exercises real parser trees, nested contexts, cursor boundaries,
 fresh edits, parser recovery, filetype and language-mapping changes, and Markdown
-and custom LaTeX injections without starting a highlighter.
-The snippet suite checks loading, trigger guards, dynamic expansions, visual
-selections, and optional completion integration.
+and custom LaTeX injections without starting a highlighter. The snippet suite checks
+trigger guards, dynamic expansions, visual selections, and optional completion.
+The integration suite types into an embedded Neovim editor, waits for actual input
+events, and checks jumps, spacing, movement, buffer changes, and undo/redo. Input
+failures produce a nonzero exit with the expected state and recent event trace.
+
+For an individual suite, replace `tests/run.lua` in the headless command with
+`tests/latex.lua`, `tests/snippets.lua`, or `tests/integration.lua`, with the same
+dependencies on `runtimepath`.
+
+Benchmark TeX autosnippet matching, optionally comparing the working tree with a
+Git revision:
+
+```sh
+nvim --headless -u NONE -i NONE -l tests/run.lua --benchmark
+nvim --headless -u NONE -i NONE -l tests/run.lua --benchmark 8abb907
+```
+
+The benchmark reports separate workloads: unmatched prose ending in punctuation
+or whitespace at 80, 500, and 2,000 bytes; successful literal and capture-based math
+triggers with context classification; and a one-character edit followed by
+reparsing and matching in a 900-line buffer with a highlighter attached. Expected
+matches, captures, and parser invalidation are checked outside timed operations.
+It reports medians from five warmed rounds, alternating version order when
+comparing revisions. Expansion and redraw are excluded, and there are no timing
+pass/fail thresholds. The edit workload includes buffer mutation and parsing
+demanded by matching. Comparing an older revision that uses ECMA triggers requires
+`jsregexp` for that revision. To run only timings, use `tests/benchmark.lua` directly
+with an optional baseline revision.
 
 ## Acknowledgements
 

@@ -1,5 +1,9 @@
 local username = (vim.env.USER or ""):gsub("^%l", string.upper)
 
+local function date_node()
+	return sn(nil, { i(1, os.date("%d-%m-%y")) })
+end
+
 local function todo_snippet(trig, aliases)
 	local name = table.concat(aliases, "|")
 	local context = { trig = trig, name = name .. " comment", desc = name .. " comment with a signature-mark" }
@@ -18,8 +22,8 @@ local function todo_snippet(trig, aliases)
 			i(3),
 			c(2, {
 				fmt("<{}>", i(1, username)),
-				fmt("<{}{}>", { i(1, os.date("%d-%m-%y")), i(2, ", " .. username) }),
-				fmt("<{}>", i(1, os.date("%d-%m-%y"))),
+				fmt("<{}{}>", { d(1, date_node), i(2, ", " .. username) }),
+				fmt("<{}>", d(1, date_node)),
 				t("")
 			}),
 			i(0),

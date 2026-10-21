@@ -15,7 +15,7 @@ local function phrase_snippet(trig, body)
 end
 
 local function rational_phrase_snippet(trig, name)
-	return s({ trig = trig, name = name, trigEngine = "pattern" }, {
+	return s({ trig = trig, name = name, trigEngine = "pattern", trigEngineOpts = { max_len = 2 } }, {
 		f(function (_, snip)
 			return "\\(\\mathbb{" .. snip.captures[1]:upper() .. "}\\)-" .. name
 		end, {})
@@ -39,6 +39,7 @@ local autosnips = {
 		name = "(arz)?ref",
 		desc = "add a reference (with autoref, zcref)",
 		trigEngine = "pattern",
+		trigEngineOpts = { max_len = 4 },
 		hidden = true
 	},
 		fmta([[\<>ref{<>}<>]], {
@@ -72,7 +73,8 @@ local autosnips = {
 	s({
 		trig = "([wW])log",
 		name = "without loss of generality",
-		trigEngine = "pattern"
+		trigEngine = "pattern",
+		trigEngineOpts = { max_len = 4 }
 	},
 		{
 			f(function (_, snip)

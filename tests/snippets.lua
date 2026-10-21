@@ -1,6 +1,6 @@
 -- Run from the repository root:
 --   nvim --headless -u NONE -i NONE -l tests/snippets.lua
--- LuaSnip (with jsregexp) and the latex parser must be on 'runtimepath'.
+-- LuaSnip and the latex parser must be on 'runtimepath'.
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
 vim.opt.virtualedit = "onemore"
 
@@ -183,6 +183,59 @@ check("symbol output and metadata", function ()
 	equal("eta command", expand(eta), "\\eta")
 end)
 
+for _, script in ipairs({ { "^^", "^{}" }, { "__", "_{}" } }) do
+	check(script[1] .. " math scope", function ()
+		local snippet = find("tex/symbols", "trigger", script[1])
+		for _, case in ipairs({
+			{ "paired dollars", "$x", "$" },
+			{ "empty paired dollars", "$", "$" },
+			{ "parenthesized math", "\\(x", "\\)" },
+			{ "empty parenthesized math", "\\(", "\\)" },
+			{ "display math", "\\[x", "\\]" },
+			{ "empty display math", "\\[", "\\]" },
+			{ "equation", "\\begin{equation}x", "\\end{equation}" },
+			{ "empty equation", "\\begin{equation}", "\\end{equation}" },
+			{ "alignment", "\\begin{align}x & = y", "\\end{align}" },
+			{ "empty alignment", "\\begin{align}", "\\end{align}" }
+		}) do
+			local before = case[2] .. script[1]
+			local source = before .. case[3]
+			equal(
+				script[1] .. " expands in " .. case[1], expand_trigger(snippet, source, #before),
+				case[2] .. script[2] .. case[3]
+			)
+			with_buffer({ source }, function ()
+				equal(script[1] .. " shown in " .. case[1], snippet.show_condition(before), true)
+			end, #before)
+		end
+		for _, case in ipairs({
+			{ "prose", "words ", "" },
+			{ "comment in math", "\\[x % ", "\n\\]" },
+			{ "text command in math", "$\\text{words ", "}$" },
+			{ "label in math", "$x\\label{eq:", "}$" },
+			{ "zlabel in math", "$x\\zlabel{eq:", "}$" },
+			{ "inline verbatim", "\\verb|", "|" },
+			{ "verbatim environment", "\\begin{verbatim}\n", "\n\\end{verbatim}" },
+			{ "listing environment", "\\begin{lstlisting}\n", "\n\\end{lstlisting}" },
+			-- A trailing script trigger can erase the math node in an unfinished
+			-- formula. These cases record the parser limit; no recovery is added.
+			{ "unclosed dollar formula", "$x", "" },
+			{ "unclosed parenthesized formula", "\\(x", "" },
+			{ "unclosed display formula", "\\[x", "" }
+		}) do
+			local before = case[2] .. script[1]
+			local source = vim.split(before .. case[3], "\n", { plain = true })
+			local before_lines = vim.split(before, "\n", { plain = true })
+			local row = #before_lines
+			local line = before_lines[row]
+			with_buffer(source, function ()
+				equal(script[1] .. " stays literal in " .. case[1], snippet:matches(line), nil)
+				equal(script[1] .. " hidden in " .. case[1], snippet.show_condition(line), false)
+			end, { row, #line })
+		end
+	end)
+end
+
 for _, trigger in ipairs({ "set", "nnn", "uuu" }) do
 	check(trigger .. " has one expansion", function ()
 		local line = "$ " .. trigger
@@ -236,6 +289,184 @@ check("inline math exit callback", function ()
 	end)
 end)
 
+local function spacing_callbacks(buffer)
+	return vim.tbl_filter(function (autocmd)
+		return autocmd.desc == "Auto Add a Space after Inline Math"
+	end, vim.api.nvim_get_autocmds({ event = "InsertCharPre", buf = buffer }))
+end
+
+-- Exercise the real InsertCharPre callbacks without queuing interactive input.
+local function pending_space(character, callback)
+	return with_buffer({ "" }, function ()
+		local buffer = vim.api.nvim_get_current_buf()
+		vim.api.nvim_create_autocmd("InsertCharPre", {
+			buffer = buffer,
+			once = true,
+			callback = function ()
+				vim.v.char = character
+			end
+		})
+		ls.snip_expand(find("tex/misc", "trigger", "mk"))
+		local existing = {}
+		for _, autocmd in ipairs(vim.api.nvim_get_autocmds({ buffer = buffer })) do
+			existing[autocmd.id] = true
+		end
+		ls.jump(1)
+		local function remaining()
+			return vim.tbl_filter(function (autocmd)
+				return autocmd.buf == buffer and not existing[autocmd.id]
+			end, vim.api.nvim_get_autocmds({}))
+		end
+		callback(buffer, remaining)
+		return remaining
+	end)
+end
+
+check("inline math immediate spacing", function ()
+	for _, character in ipairs({ "a", "Z", ".", ",", ")", " ", "7", "中" }) do
+		pending_space(character, function (buffer, remaining)
+			vim.api.nvim_exec_autocmds("InsertCharPre", { buffer = buffer })
+			local expected = (character == "a" or character == "Z") and " " .. character or character
+			equal("inline math next character " .. character, vim.v.char, expected)
+			equal("inline math removes callbacks after " .. character, #remaining(), 0)
+		end)
+	end
+end)
+
+check("inline math cancels stale spacing", function ()
+	for _, event in ipairs({ "CursorMovedI", "InsertLeave" }) do
+		pending_space("a", function (buffer, remaining)
+			if event ~= "InsertLeave" then
+				local exit = vim.api.nvim_win_get_cursor(0)
+				vim.api.nvim_win_set_cursor(0, { 1, 0 })
+				vim.api.nvim_exec_autocmds(event, { buffer = buffer })
+				vim.api.nvim_win_set_cursor(0, exit)
+			else
+				vim.api.nvim_exec_autocmds(event, { buffer = buffer })
+			end
+			equal(event .. " cancels inline math spacing", #spacing_callbacks(buffer), 0)
+			vim.api.nvim_exec_autocmds("InsertCharPre", { buffer = buffer })
+			equal(event .. " does not add a later space", vim.v.char, "a")
+			equal(event .. " removes all spacing callbacks", #remaining(), 0)
+		end)
+	end
+	pending_space("a", function (buffer)
+		vim.api.nvim_exec_autocmds("CursorMovedI", { buffer = buffer })
+		equal("movement event at the exit keeps spacing armed", #spacing_callbacks(buffer), 1)
+		vim.api.nvim_exec_autocmds("InsertCharPre", { buffer = buffer })
+		equal("movement event at the exit still adds one space", vim.v.char, " a")
+	end)
+	pending_space("a", function (buffer, remaining)
+		vim.api.nvim_win_set_cursor(0, { 1, 0 })
+		vim.api.nvim_exec_autocmds("InsertCharPre", { buffer = buffer })
+		equal("cursor guard rejects typing elsewhere before movement event", vim.v.char, "a")
+		equal("cursor guard removes all spacing callbacks", #remaining(), 0)
+	end)
+	pending_space("a", function (buffer, remaining)
+		local exit = vim.api.nvim_win_get_cursor(0)
+		vim.api.nvim_buf_set_text(buffer, 0, 2, 0, 2, { "x" })
+		vim.api.nvim_win_set_cursor(0, exit)
+		vim.api.nvim_exec_autocmds("InsertCharPre", { buffer = buffer })
+		equal("editing before the next character cancels spacing", vim.v.char, "a")
+		equal("edit guard removes all spacing callbacks", #remaining(), 0)
+	end)
+	pending_space("a", function (buffer, remaining)
+		local other = vim.api.nvim_create_buf(false, true)
+		vim.api.nvim_set_current_buf(other)
+		equal("leaving buffer cancels inline math spacing", #spacing_callbacks(buffer), 0)
+		vim.api.nvim_set_current_buf(buffer)
+		vim.api.nvim_buf_delete(other, { force = true })
+		vim.api.nvim_exec_autocmds("InsertCharPre", { buffer = buffer })
+		equal("returning to buffer does not add stale space", vim.v.char, "a")
+		equal("buffer leave removes all spacing callbacks", #remaining(), 0)
+	end)
+	local remaining = pending_space("a", function () end)
+	equal("deleting buffer removes all spacing callbacks", #remaining(), 0)
+end)
+
+check("inline math reentry keeps one pending callback", function ()
+	local previous = vim.deepcopy(session.config)
+	local ok, err = pcall(function ()
+		ls.config.setup({ history = true })
+		pending_space("a", function (buffer, remaining)
+			ls.jump(-1)
+			ls.jump(1)
+			equal("reentering inline math replaces pending callback", #spacing_callbacks(buffer), 1)
+			vim.api.nvim_exec_autocmds("InsertCharPre", { buffer = buffer })
+			equal("reentered inline math adds exactly one space", vim.v.char, " a")
+			equal("reentry retires original spacing callbacks", #remaining(), 0)
+			equal("reentry removes final spacing callback", #spacing_callbacks(buffer), 0)
+		end)
+	end)
+	ls.config.setup(previous)
+	if not ok then
+		error(err)
+	end
+end)
+
+check("automatic inline math preserves pattern matches", function ()
+	local cases = {
+		"words x", "words a", "words I", "words 2ab", "words i+1", "words x_y", "words x=y",
+		"words x,", "words 2ab;", "words i+1.", "words x-", "words x)", "words x!",
+		"中😀 x", "中😀 2ab", "中😀 i+1", "words α", "", "plain words",
+		("prefix "):rep(512) .. "x",
+		"words " .. ("1"):rep(1024) .. ("a"):rep(1024)
+	}
+	for _, name in ipairs({ "single-letter variable", "surround word starting with number", "surround i+1" }) do
+		local snippet = find("tex/misc", "name", name)
+		local reference = ls.snippet({ trig = snippet.trigger, trigEngine = "pattern", wordTrig = false }, ls.text_node(""), {
+			condition = require("math-snippets.latex").in_text
+		})
+		with_buffer({ "" }, function ()
+			for case_index, source in ipairs(cases) do
+				for suffix_index, suffix in ipairs({ "", "x", "!", " ", "\t", " \t ", (" \t"):rep(512) }) do
+					local line = source .. suffix
+					vim.api.nvim_buf_set_lines(0, 0, -1, false, { line })
+					vim.api.nvim_win_set_cursor(0, { 1, #line })
+					local actual, expected = snippet:matches(line), reference:matches(line)
+					equal(
+						("%s pattern equivalence %d/%d"):format(name, case_index, suffix_index),
+						actual and { actual.trigger, actual.captures }, expected and { expected.trigger, expected.captures }
+					)
+				end
+			end
+		end)
+	end
+end)
+
+check("Beamer document class detection", function ()
+	local frame = find("tex/environments", "trigger", "bfr")
+	for _, case in ipairs({
+		{ "\\documentclass{beamer}", true },
+		{ "  \\documentclass{beamer}", true },
+		{ "\\documentclass{beamer} \t", true },
+		{ "\\documentclass{beamer} % slides", true },
+		{ "\\documentclass[aspectratio=169]{beamer}", true },
+		{ "  \\documentclass [aspectratio=169] { beamer }   % slides", true },
+		{ "% \\documentclass{beamer}", false },
+		{ "  % \\documentclass{beamer}", false },
+		{ "\\documentclass{article}", false },
+		{ "\\documentclass{article} % {beamer}", false },
+		{ "\\documentclassfoo{beamer}", false },
+		{ "\\documentclass{beamer} garbage", false }
+	}) do
+		with_buffer({ case[1], "", "bfr" }, function ()
+			equal("Beamer expansion for " .. case[1], frame:matches("bfr") ~= nil, case[2])
+			equal("Beamer completion for " .. case[1], frame.show_condition("bfr"), case[2])
+		end, { 3, 3 })
+	end
+	for _, row in ipairs({ 10, 11 }) do
+		local lines = {}
+		for index = 1, row - 1 do
+			lines[index] = ""
+		end
+		lines[row], lines[row + 1] = "\\documentclass{beamer}", "bfr"
+		with_buffer(lines, function ()
+			equal("Beamer declaration on line " .. row, frame:matches("bfr") ~= nil, row == 10)
+		end, { row + 1, 3 })
+	end
+end)
+
 for _, case in ipairs({
 	{ "cohomology-d", "H_2X", "H^{2}(X,)" },
 	{ "cohomology-a", "HiX", "H^{i}(X,)" }
@@ -261,6 +492,95 @@ for _, operator in ipairs({ "sin", "ker", "Quot" }) do
 		)
 	end)
 end
+
+check("command trigger boundaries and captures", function ()
+	for _, case in ipairs({
+		{ "tex/operators", "sin", true },
+		{ "tex/symbols", "sq", true },
+		{ "tex/symbols", "op", false },
+		{ "tex/symbols", "nabl", false }
+	}) do
+		local snippet = find(case[1], "trigger", case[2])
+		for _, prefix in ipairs({ "", " ", "\t", "(", "x", "_", "7", "α", "中", "😀", "é", ("x "):rep(1024) .. "😀" }) do
+			local line = prefix .. case[2]
+			with_buffer({ "\\[", line, "\\]" }, function ()
+				local match = snippet:matches(line)
+				local blocked = case[3] and (prefix == "x" or prefix == "_" or prefix == "7")
+				equal(
+					case[2] .. " after " .. (prefix:sub(1, 12)),
+					match and { match.trigger, match.captures },
+					not blocked and { case[2], { case[2] } } or nil
+				)
+			end, { 2, #line })
+		end
+		for _, line in ipairs({ "\\" .. case[2], "\\\\" .. case[2], "中\\" .. case[2], case[2] .. "x", case[2] .. " " }) do
+			with_buffer({ "\\[", line, "\\]" }, function ()
+				equal(case[2] .. " rejects " .. line, snippet:matches(line), nil)
+			end, { 2, #line })
+		end
+	end
+	for _, case in ipairs({
+		{ "tex/operators", "sin", "αsin", "α\\sin" },
+		{ "tex/symbols", "op", "xop", "x\\oplus" },
+		{ "tex/symbols", "sq", "中sq", "中\\sqrt{}" }
+	}) do
+		equal(
+			case[2] .. " preserves preceding text",
+			expand_trigger(find(case[1], "trigger", case[2]), "$ " .. case[3] .. "$", #case[3] + 2),
+			"$ " .. case[4] .. "$"
+		)
+	end
+end)
+
+check("bounded pattern matches and captures", function ()
+	for _, case in ipairs({
+		{ "tex/operators", "cohomology-d", "H_2X", { "H", "2", "X" } },
+		{ "tex/operators", "cohomology-a", "HiX", { "H", "i", "X" } },
+		{ "tex/operators", "x[n+1]", "xp2", { "x", "2" } },
+		{ "tex/phrases", "Cartier", "qc", { "q" }, "text" },
+		{ "tex/phrases", "divisor", "rd", { "r" }, "text" },
+		{ "tex/phrases", "(arz)?ref", "zref", { "z" }, "text" },
+		{ "tex/phrases", "without loss of generality", "Wlog", { "W" }, "line" },
+		{ "tex/symbols", "\\xi_{i}", "\\Xii", { "X" } },
+		{ "tex/symbols", "\\pi_{i}", "\\pii", { "p" } },
+		{ "tex/symbols", "\\phi_{i}", "\\Phii", { "P" } },
+		{ "tex/symbols", "\\chi_{i}", "\\chii", { "c" } },
+		{ "tex/symbols", "\\psi_{i}", "\\Psii", { "P" } },
+		{ "tex/symbols", "local ring, structure sheaf", "OZ", { "Z" } },
+		{ "tex/symbols", "auto subscript 1", "x7", { "x", "7" } },
+		{ "tex/symbols", "auto subscript 2", "x_12", { "x", "12" } },
+		{ "tex/symbols", "positive", "QP", { "Q" } },
+		{ "tex/symbols", "negative", "RN", { "R" } },
+		{ "tex/symbols", "linearly equivalent", "qle", { "q" } },
+		{ "tex/symbols", "alph i", "xii", { "x" } },
+		{ "tex/symbols", "alph j", "yjj", { "y" } },
+		{ "tex/delimiters", "brackets", "bkp", { "p" } },
+		{ "tex/delimiters", "left right", "lrv", { "v" } }
+	}) do
+		local snippet = find(case[1], "name", case[2])
+		local prefixes = case[5] == "line" and { "", (" \t"):rep(1024) }
+			or { "", "α", "中", "😀", ("x "):rep(1024) .. "😀" }
+		for _, prefix in ipairs(prefixes) do
+			local line = prefix .. case[3]
+			local lines = case[5] and { line } or { "\\[", line, "\\]" }
+			with_buffer(lines, function ()
+				local match = snippet:matches(line)
+				equal(
+					case[2] .. " suffix and captures after " .. prefix:sub(1, 12),
+					match and { match.trigger, match.captures }, { case[3], case[4] }
+				)
+				equal(case[2] .. " remains end anchored", snippet:matches(line .. "!"), nil)
+			end, { case[5] and 1 or 2, #line })
+		end
+	end
+	local wlog = find("tex/phrases", "name", "without loss of generality")
+	with_buffer({ "preceding text Wlog" }, function ()
+		equal("bounded matching preserves full line for conditions", wlog:matches("preceding text Wlog"), nil)
+	end)
+	equal("bounded matching preserves word boundaries", with_buffer({ "$ xHiX$" }, function ()
+		return find("tex/operators", "name", "cohomology-a"):matches("$ xHiX")
+	end, 6), nil)
+end)
 
 for _, case in ipairs({ { "rmap", "dashrightarrow" }, { "emb", "hookrightarrow" } }) do
 	check(case[1] .. " arrow", function ()
@@ -375,6 +695,70 @@ check("TODO comment wrappers", function ()
 			equal("TODO signature choice", buffer_text(), "-- TODO:  " .. (mark_text and "<" .. mark_text .. ">" or ""))
 		end
 	end)
+end)
+
+check("TODO dates remain fresh and editable", function ()
+	local original_date = os.date
+	local today = "01-01-26"
+	os.date = function (format, ...)
+		return format == "%d-%m-%y" and today or original_date(format, ...)
+	end
+	local ok, err = pcall(function ()
+		local todo = find("all", "trigger", "todo")
+		local username = (vim.env.USER or ""):gsub("^%l", string.upper)
+		with_buffer({ "" }, function ()
+			vim.bo.commentstring = "-- %s"
+			ls.snip_expand(todo)
+			ls.jump(1)
+			today = "02-01-26"
+			ls.change_choice(1)
+			equal(
+				"TODO date is fresh when its choice is first selected", buffer_text(),
+				"-- TODO:  <" .. today .. ", " .. username .. ">"
+			)
+			local node = session.current_nodes[vim.api.nvim_get_current_buf()]
+			equal("TODO date is an editable insert node", node.type, require("luasnip.util.types").insertNode)
+			equal("TODO jumps into the date field", node:get_text(), { today })
+			local first, last = node.mark:pos_begin_end_raw()
+			vim.api.nvim_buf_set_text(0, first[1], first[2], last[1], last[2], { "custom date" })
+			ls.active_update_dependents()
+			equal("TODO date accepts edits", buffer_text(), "-- TODO:  <custom date, " .. username .. ">")
+			today = "03-01-26"
+			ls.change_choice(1)
+			equal("TODO date-only choice starts with current date", buffer_text(), "-- TODO:  <" .. today .. ">")
+			ls.change_choice(-1)
+			equal("TODO signature switching preserves edited date", buffer_text(), "-- TODO:  <custom date, " .. username .. ">")
+			ls.jump(1)
+			equal(
+				"TODO date is followed by username field", session.current_nodes[vim.api.nvim_get_current_buf()]:get_text(),
+				{ ", " .. username }
+			)
+			ls.jump(1)
+			equal(
+				"TODO signature is followed by description field",
+				session.current_nodes[vim.api.nvim_get_current_buf()]:get_text(), { "" }
+			)
+		end)
+		today = "04-01-26"
+		for _, case in ipairs({
+			{ "todo", "TODO" }, { "fix", "FIX" }, { "hack", "HACK" }, { "warn", "WARN" }, { "perf", "PERF" }, { "note", "NOTE" }
+		}) do
+			with_buffer({ "" }, function ()
+				vim.bo.commentstring = "-- %s"
+				ls.snip_expand(find("all", "trigger", case[1]))
+				ls.jump(1)
+				ls.change_choice(1)
+				equal(
+					case[1] .. " expansion after date change", buffer_text(),
+					"-- " .. case[2] .. ":  <" .. today .. ", " .. username .. ">"
+				)
+			end)
+		end
+	end)
+	os.date = original_date
+	if not ok then
+		error(err)
+	end
 end)
 
 check("visual selections", function ()

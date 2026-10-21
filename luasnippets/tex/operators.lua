@@ -5,10 +5,10 @@ local opts = { condition = tex.in_math, show_condition = tex.in_math }
 
 local function sequence_snippet(trig, cmd, desc)
 	return s({
-		trig = util.auto_trigger(trig),
+		trig = trig,
 		name = desc,
 		desc = desc .. " with automatic backslash",
-		trigEngine = "ecma"
+		trigEngine = util.command_trigger
 	},
 		fmta([[\<><><>]], {
 			t(cmd),
@@ -19,17 +19,17 @@ end
 
 local function auto_backslash_snippet(trig)
 	return s({
-		trig = util.auto_trigger(trig),
+		trig = trig,
 		name = trig,
 		desc = trig .. " with automatic backslash",
 		docstring = "\\" .. trig,
-		trigEngine = "ecma"
+		trigEngine = util.command_trigger
 	}, { t("\\" .. trig), i(0) }, opts)
 end
 
-local function cohomology_snippet(trig, name)
+local function cohomology_snippet(trig, name, length)
 	return s(
-		{ trig = trig, name = name, trigEngine = "pattern", hidden = true },
+		{ trig = trig, name = name, trigEngine = "pattern", trigEngineOpts = { max_len = length }, hidden = true },
 		fmta([[<><>)]], {
 			f(function (_, snip)
 				return snip.captures[1] .. "^{" .. snip.captures[2] .. "}(" .. snip.captures[3] .. ","
@@ -51,9 +51,9 @@ local snips = {
 }
 
 local autosnips = {
-	cohomology_snippet("([hH])_(%d)(%u)", "cohomology-d"),
+	cohomology_snippet("([hH])_(%d)(%u)", "cohomology-d", 4),
 
-	s({ trig = "(%a)p(%d)", name = "x[n+1]", trigEngine = "pattern", hidden = true }, {
+	s({ trig = "(%a)p(%d)", name = "x[n+1]", trigEngine = "pattern", trigEngineOpts = { max_len = 3 }, hidden = true }, {
 		f(function (_, snip)
 			return snip.captures[1] .. "_{n+" .. snip.captures[2] .. "}"
 		end, {})
@@ -71,7 +71,7 @@ local autosnips = {
 		fmta([[\frac{<>}{<>}<>]], { d(1, util.get_visual), i(2), i(0) }), opts
 	),
 	s(
-		{ trig = util.auto_trigger("lim"), name = "lim(sup|inf)", desc = "lim(sup|inf)", trigEngine = "ecma" },
+		{ trig = "lim", name = "lim(sup|inf)", desc = "lim(sup|inf)", trigEngine = util.command_trigger },
 		fmta([[\lim<><><>]], {
 			c(1, { t(""), t("sup"), t("inf") }),
 			c(2, { t(""), fmta([[_{<> \to <>}]], { i(1, "n"), i(2, "\\infty") }) }),
@@ -95,7 +95,7 @@ local autosnips = {
 		), opts
 	),
 
-	cohomology_snippet("([hH])([i-npq])(%u)", "cohomology-a"),
+	cohomology_snippet("([hH])([i-npq])(%u)", "cohomology-a", 3),
 
 	s(
 		{ trig = "rij", name = "(x_n) n ∈ N", hidden = true },

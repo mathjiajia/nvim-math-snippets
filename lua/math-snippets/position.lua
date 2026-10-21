@@ -6,7 +6,10 @@ local mkcond = require("luasnip.extras.conditions").make_condition
 local function in_beamer()
 	local lines = api.nvim_buf_get_lines(0, 0, 10, false)
 	for _, line in ipairs(lines) do
-		if line:match("^\\documentclass.*{beamer}$") then
+		local declaration = line:match("^%s*\\documentclass%s*(.*)$")
+		local suffix = declaration
+			and (declaration:match("^{%s*beamer%s*}%s*(.*)$") or declaration:match("^%b[]%s*{%s*beamer%s*}%s*(.*)$"))
+		if suffix and (suffix == "" or suffix:sub(1, 1) == "%") then
 			return true
 		end
 	end

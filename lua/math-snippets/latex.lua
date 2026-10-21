@@ -2,17 +2,27 @@ local api = vim.api
 local ts = vim.treesitter
 local mkcond = require("luasnip.extras.conditions").make_condition
 
+---@param node  TSNode
+---@param bufnr integer
+---@return string
+local function node_text(node, bufnr)
+	local start_row, start_col, end_row, end_col = node:range()
+	local lines = api.nvim_buf_get_text(bufnr, start_row, start_col, end_row, end_col, {})
+	return lines[2] and table.concat(lines, "\n") or lines[1] or ""
+end
+
 -- Match name families with Lua patterns unless explicitly anchored.
 ---@param ... string
 ---@return fun(value: any): boolean
 local function matcher(...)
 	local patterns = { ... }
+	local count = #patterns
 	return function (value)
 		if type(value) ~= "string" then
 			return false
 		end
-		for _, pattern in ipairs(patterns) do
-			if value:find(pattern) then
+		for index = 1, count do
+			if value:find(patterns[index]) then
 				return true
 			end
 		end
@@ -55,23 +65,32 @@ local NODE_TYPES = setmetatable({}, {
 ---@param name string
 ---@return TSNode?
 local function field(node, name)
-	-- field() scans all children; stop at the first match in large environments.
-	for child, field_name in node:iter_children() do
-		if field_name == name then
-			return child
-		end
+	return node:field(name)[1]
+end
+
+---@param node  TSNode
+---@param index integer
+---@param kind  string
+---@param name  string
+---@return TSNode?
+local function child_or_field(node, index, kind, name)
+	-- Use the usual grammar position; comments and other extras may shift it.
+	local child = node:child(index)
+	if child and child:type() == kind then
+		return child
 	end
+	return field(node, name)
 end
 
 ---@param node  TSNode
 ---@param bufnr integer
 ---@return string?
 local function environment_name(node, bufnr)
-	local begin = field(node, "begin")
-	local name = begin and field(begin, "name")
+	local begin = child_or_field(node, 0, "begin", "begin")
+	local name = begin and child_or_field(begin, 1, "curly_group_text", "name")
 	if name then
 		-- Read only the name, not the text of the entire environment.
-		local text = ts.get_node_text(name, bufnr):match("^%{%s*([^}%s]+)%s*%}$")
+		local text = node_text(name, bufnr):match("^%{%s*([^}%s]+)%s*%}$")
 		return text and (text:gsub("%*$", ""))
 	end
 end
@@ -80,9 +99,9 @@ end
 ---@param bufnr integer
 ---@return string?
 local function command_name(node, bufnr)
-	local command = field(node, "command")
+	local command = child_or_field(node, 0, "command_name", "command")
 	if command then
-		return (ts.get_node_text(command, bufnr):gsub("^\\", ""):gsub("%*$", ""))
+		return (node_text(command, bufnr):gsub("^\\", ""):gsub("%*$", ""))
 	end
 end
 
@@ -127,11 +146,6 @@ end
 
 local EMPTY = { math = false, align = false, bullets = false, tikzcd = false }
 
----@class math_snippets.Scope
----@field math_mode        boolean?  nil until a mode switch is found
----@field math_environment string?   Environment establishing the nearest math mode
----@field environments     string[]? Enclosing environments, nearest first
-
 ---@param node      TSNode
 ---@param kind      string
 ---@param math_node boolean
@@ -157,51 +171,20 @@ local function node_math_mode(node, kind, math_node, env, command, row, col)
 	end
 end
 
----@param scope math_snippets.Scope
----@return boolean
-local function in_math(scope)
-	return scope.math_mode == true
-end
-
----@param scope math_snippets.Scope
----@return boolean
-local function in_align(scope)
-	-- Explicit math nested inside an alignment establishes its own scope.
-	return in_math(scope) and ALIGN_ENVS(scope.math_environment)
-end
-
----@param scope math_snippets.Scope
----@return boolean
-local function in_bullets(scope)
-	if not in_math(scope) and scope.environments then
-		for _, env in ipairs(scope.environments) do
-			if BULLET_ENVS(env) then
-				return true
-			end
-		end
-	end
-	return false
-end
-
----@param scope math_snippets.Scope
----@return boolean
-local function in_tikzcd(scope)
-	return in_math(scope) and scope.math_environment == "tikzcd"
-end
-
+-- Walk the ancestors of the cursor node; the nearest mode switch wins.
 ---@param node  TSNode?
 ---@param bufnr integer
 ---@param row   integer
 ---@param col   integer
----@return math_snippets.Scope? nil in an excluded region
-local function scan_scope(node, bufnr, row, col)
+---@return math_snippets.Context
+local function classify(node, bufnr, row, col)
 	-- nil: no mode found yet; false: text; true: math.
 	---@type boolean?
 	local math_mode
 	---@type string?
 	local math_environment
-	---@type string[]?
-	local environments
+	---@type boolean
+	local bullets = false
 	---@type TSNode?
 	local child
 	while node do
@@ -209,32 +192,32 @@ local function scan_scope(node, bufnr, row, col)
 		local flags = NODE_TYPES[kind]
 		if flags and in_scope(node, row, col, kind) then
 			if flags.opaque then
-				return nil
+				return EMPTY
 			end
 			if kind == "begin" or kind == "end" or kind == "citation" then
 				-- Only explicit math in an optional title/note survives this boundary.
 				local in_note = math_mode and child
 					and (child == field(node, "options") or child == field(node, "prenote") or child == field(node, "postnote"))
 				if not in_note then
-					return nil
+					return EMPTY
 				end
 			end
 			local env
 			if kind == "math_environment" or kind == "generic_environment" then
 				env = environment_name(node, bufnr)
 				-- Column specifications/counts are not math content.
-				if ARGUMENT_ENVS[env] and child and child == node:named_child(1) and child:type() == "curly_group"
+				if ARGUMENT_ENVS[env] and child and child:type() == "curly_group" and child == node:named_child(1)
 					and in_scope(child, row, col) then
-					return nil
+					return EMPTY
 				end
-				if env then
-					environments = environments or {}
-					environments[#environments + 1] = env
+				-- Defer the text-mode requirement until the nearest mode is known.
+				if not bullets and BULLET_ENVS(env) then
+					bullets = true
 				end
 			end
 			local command = kind == "generic_command" and command_name(node, bufnr)
 			if command and OPAQUE_COMMANDS(command) then
-				return nil
+				return EMPTY
 			end
 			-- The nearest mode switch wins: text inside math, and math inside text.
 			if math_mode == nil then
@@ -246,20 +229,19 @@ local function scan_scope(node, bufnr, row, col)
 		end
 		child, node = node, node:parent()
 	end
-	return { math_mode = math_mode, math_environment = math_environment, environments = environments }
-end
-
----@param node  TSNode?
----@param bufnr integer
----@param row   integer
----@param col   integer
----@return math_snippets.Context
-local function classify(node, bufnr, row, col)
-	local scope = scan_scope(node, bufnr, row, col)
-	if not scope then
-		return EMPTY
+	if math_mode then
+		return {
+			math = true,
+			-- Explicit math nested inside an alignment establishes its own scope.
+			align = ALIGN_ENVS(math_environment),
+			bullets = false,
+			tikzcd = math_environment == "tikzcd"
+		}
 	end
-	return { math = in_math(scope), align = in_align(scope), bullets = in_bullets(scope), tikzcd = in_tikzcd(scope) }
+	if bullets then
+		return { math = false, align = false, bullets = true, tikzcd = false }
+	end
+	return EMPTY
 end
 
 ---@param parser vim.treesitter.LanguageTree
@@ -270,6 +252,7 @@ end
 ---@return math_snippets.Context
 local function parse_context(parser, bufnr, row, col, range)
 	-- Parse synchronously without a highlighter; limit injections to the cursor line.
+	-- TeX buffers may also contain custom injections, so preserve language boundaries.
 	parser:parse(range)
 	local left = math.max(col - 1, 0)
 	local point = { row, left, row, left }
@@ -307,6 +290,7 @@ end
 
 ---@type math_snippets.ContextCache?
 local cache
+local filetype_opts = { buf = 0 }
 
 ---@return math_snippets.Context
 local function get_context()
@@ -316,7 +300,9 @@ local function get_context()
 	local row, col = cursor[1] - 1, cursor[2]
 	local tick = api.nvim_buf_get_changedtick(bufnr)
 	-- Let the buffer filetype choose the root parser so Markdown injections work.
-	local lang = ts.language.get_lang(api.nvim_get_option_value("filetype", { buf = bufnr }))
+	-- Resolve each time: filetypes and language registrations can change without edits.
+	filetype_opts.buf = bufnr
+	local lang = ts.language.get_lang(api.nvim_get_option_value("filetype", filetype_opts))
 	-- TeX filetype aliases may not be registered when using standalone parsers.
 	if lang == "tex" or lang == "plaintex" then
 		lang = "latex"
@@ -325,6 +311,7 @@ local function get_context()
 	if not parser then
 		return EMPTY
 	end
+	-- Parser replacement and explicit invalidation need not change the buffer tick.
 	if cache and cache.bufnr == bufnr and cache.tick == tick and cache.row == row and cache.col == col
 		and cache.parser == parser and parser:is_valid(false, cache.range) then
 		return cache.context

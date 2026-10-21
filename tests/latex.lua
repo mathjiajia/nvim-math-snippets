@@ -1,6 +1,6 @@
 -- Run from the repository root:
 --   nvim --headless -u NONE -i NONE -l tests/latex.lua
--- LuaSnip and the latex, markdown, and markdown_inline parsers must be on 'runtimepath'.
+-- LuaSnip and the latex, lua, markdown, and markdown_inline parsers must be on 'runtimepath'.
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
 vim.opt.virtualedit = "onemore"
 
@@ -190,6 +190,7 @@ end
 check_case("starred alignedat column count", "\\begin{alignedat*}{2|}x\\end{alignedat*}", {})
 check_case("url inside math", "\\(\\url{https://example.org/x|}\\)", {})
 check_case("multiline begin name", "\\begin\n{aligned}\nx|\n\\end{aligned}", { in_math = true, in_align = true })
+check_case("comment before begin name", "\\begin% comment\n{aligned}\nx|\n\\end{aligned}", { in_math = true, in_align = true })
 check_case("array column specification", "\\begin{array}{c|c}x\\end{array}", {})
 check_case("alignat column count", "\\begin{alignat}{2|}x\\end{alignat}", {})
 check_case("math after array specification", "\\begin{array}{cc}|x\\end{array}", { in_math = true, in_align = true })
@@ -241,10 +242,81 @@ check_case(
 )
 check_case("markdown code fence without latex injection", "```text\n$x|+y$\n```", {}, "markdown", "markdown")
 
+-- A custom injection must override the surrounding LaTeX math context.
+-- Reset the temporary override afterward so subsequent fixtures use runtime queries.
+vim.treesitter.query.set("latex", "injections", [[
+((generic_command
+  command: (command_name) @_command
+  arg: (curly_group) @injection.content)
+ (#eq? @_command "\\directlua")
+ (#set! injection.language "lua")
+ (#set! injection.include-children)
+ (#offset! @injection.content 0 1 0 -1))
+]])
+check_case("custom Lua injection inside math", "\\(x + \\directlua{tex.sprint(1|)} + y\\)", {})
+check_case("math after custom Lua injection", "\\(x + \\directlua{tex.sprint(1)} + y|\\)", { in_math = true })
+vim.treesitter.query.set("latex", "injections", nil)
+
+-- Filetype and language registration can change without any edit or cursor move.
+local buffer = fixture("\\begin{aligned}x|\\end{aligned}", "tex", "latex")
+local ok, err = pcall(function ()
+	local tick = vim.api.nvim_buf_get_changedtick(buffer)
+	equal("filetype change starts in math", conditions.in_math(), true)
+	vim.bo[buffer].filetype = "text"
+	equal("filetype change clears cached math", conditions.in_math(), false)
+	vim.bo[buffer].filetype = "tex"
+	equal("filetype restoration recovers math", conditions.in_math(), true)
+	equal("filetype changes need no buffer edit", vim.api.nvim_buf_get_changedtick(buffer), tick)
+end)
+if not ok then
+	failures[#failures + 1] = "filetype change checks: " .. tostring(err)
+end
+vim.api.nvim_buf_delete(buffer, { force = true })
+
+local custom_filetype = "math_snippets_dynamic_language"
+buffer = fixture("\\begin{aligned}x|\\end{aligned}", custom_filetype, false)
+ok, err = pcall(function ()
+	local tick = vim.api.nvim_buf_get_changedtick(buffer)
+	equal("unregistered filetype has no math parser", conditions.in_math(), false)
+	vim.treesitter.language.register("latex", custom_filetype)
+	equal("new language registration recovers without editing", conditions.in_math(), true)
+	vim.treesitter.language.register("markdown", custom_filetype)
+	equal("changed language registration clears cached math", conditions.in_math(), false)
+	vim.treesitter.language.register("latex", custom_filetype)
+	equal("restored language registration recovers without editing", conditions.in_math(), true)
+	equal("language registration needs no buffer edit", vim.api.nvim_buf_get_changedtick(buffer), tick)
+	vim.treesitter.language.register("markdown", custom_filetype)
+	vim.api.nvim_buf_set_lines(buffer, 0, -1, false, { "\\begin{aligned}y\\end{aligned}" })
+	equal("changed language registration is honored after editing", conditions.in_math(), false)
+	vim.treesitter.language.register("latex", custom_filetype)
+	equal("language registration recovers after editing", conditions.in_math(), true)
+end)
+if not ok then
+	failures[#failures + 1] = "language registration checks: " .. tostring(err)
+end
+vim.api.nvim_buf_delete(buffer, { force = true })
+
+custom_filetype = "math_snippets_remapped_language"
+vim.treesitter.language.register("latex", custom_filetype)
+buffer = fixture("\\begin{aligned}x|\\end{aligned}", custom_filetype, false)
+ok, err = pcall(function ()
+	equal("initial language registration enables math", conditions.in_math(), true)
+	vim.treesitter.language.register("markdown", custom_filetype)
+	equal("remapping a known language clears cached math", conditions.in_math(), false)
+	vim.api.nvim_buf_set_lines(buffer, 0, -1, false, { "\\begin{aligned}y\\end{aligned}" })
+	equal("remapping a known language is honored after editing", conditions.in_math(), false)
+	vim.treesitter.language.register("latex", custom_filetype)
+	equal("restoring a known language recovers math", conditions.in_math(), true)
+end)
+if not ok then
+	failures[#failures + 1] = "language remapping checks: " .. tostring(err)
+end
+vim.api.nvim_buf_delete(buffer, { force = true })
+
 -- Updating an attached parser must invalidate context even when LuaSnip does
 -- not pass a matched_trigger or passes one longer than a single character.
-local buffer = fixture("words|", "tex", "latex")
-local ok, err = pcall(function ()
+buffer = fixture("words|", "tex", "latex")
+ok, err = pcall(function ()
 	equal("before edit", conditions.in_math(), false)
 	vim.api.nvim_buf_set_lines(buffer, 0, -1, false, { "\\(x\\)" })
 	vim.api.nvim_win_set_cursor(0, { 1, 3 })
@@ -321,6 +393,25 @@ parser.parse = original_parse
 vim.treesitter.get_parser = original_get_parser
 if not ok then
 	failures[#failures + 1] = "cache and failure recovery checks: " .. tostring(err)
+end
+vim.api.nvim_buf_delete(buffer, { force = true })
+
+-- An unavailable parser on the first lookup must not create a cached result.
+buffer = fixture("$x|$", "tex", "latex")
+ok, err = pcall(function ()
+	local tick = vim.api.nvim_buf_get_changedtick(buffer)
+	vim.treesitter.get_parser = function ()
+		return nil, "simulated initially unavailable parser"
+	end
+	equal("initially missing parser fails closed", conditions.in_math(), false)
+	equal("initially missing parser text complement", conditions.in_text(), true)
+	vim.treesitter.get_parser = original_get_parser
+	equal("initially missing parser recovers without editing", conditions.in_math(), true)
+	equal("initial parser recovery needs no buffer edit", vim.api.nvim_buf_get_changedtick(buffer), tick)
+end)
+vim.treesitter.get_parser = original_get_parser
+if not ok then
+	failures[#failures + 1] = "initial parser recovery checks: " .. tostring(err)
 end
 vim.api.nvim_buf_delete(buffer, { force = true })
 

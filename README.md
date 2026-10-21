@@ -91,7 +91,7 @@ heuristics, which can be adjusted in `lua/math-snippets/latex.lua` if needed.
 
 ## Tests
 
-With LuaSnip (including `jsregexp` for ECMAScript triggers), the LaTeX/Markdown
+With LuaSnip (including `jsregexp` for ECMAScript triggers), the LaTeX/Lua/Markdown
 parsers, and their injection queries on `runtimepath`:
 
 ```sh
@@ -100,7 +100,8 @@ nvim --headless -u NONE -i NONE -l tests/snippets.lua
 ```
 
 The condition suite exercises real parser trees, nested contexts, cursor boundaries,
-fresh edits, missing parsers, and Markdown injections without starting a highlighter.
+fresh edits, parser recovery, filetype and language-mapping changes, and Markdown
+and custom LaTeX injections without starting a highlighter.
 The snippet suite checks loading, trigger guards, dynamic expansions, visual
 selections, and optional completion integration.
 

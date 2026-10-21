@@ -7,7 +7,7 @@ local text_opts = { condition = tex.in_text, show_condition = tex.in_text }
 -- Dynamically generates snippets based on matched postfix.
 local function generate_postfix_dynamicnode(_, parent, _, prefix)
 	local capture = parent.snippet.env.POSTFIX_MATCH
-	local content = #capture > 0 and t(capture) or i(1, parent.snippet.env.SELECT_RAW)
+	local content = #capture > 0 and t(capture) or i(1, parent.snippet.env.LS_SELECT_RAW)
 	return sn(nil, { t(prefix), content, t("}"), i(0) })
 end
 

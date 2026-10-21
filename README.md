@@ -2,6 +2,8 @@
 
 A [LuaSnip][luasnip] collection for TeX, Markdown, Python, Git commits, and TODO comments.
 
+Targets Neovim 0.13 and LuaSnip 2.5.
+
 Example (with [lazy.nvim][lazy]):
 
 ```lua
@@ -22,6 +24,10 @@ Example (with [lazy.nvim][lazy]):
 
 `jsregexp` enables the ECMAScript triggers used by the TeX snippets. The `eqref`
 snippet opens LSP completion when `blink.cmp` is available; Blink is optional.
+
+Visual-selection snippets use LuaSnip's `LS_SELECT_RAW`. Configure
+`cut_selection_keys` in LuaSnip to choose the visual-mode mapping that stores the
+selection for the next snippet.
 
 ## LaTeX conditions
 
@@ -59,7 +65,7 @@ environment leaves its scope immediately.
 Detection uses Neovim's native [Tree-sitter API][treesitter-api], with synchronous
 parsing of the cursor line's injections and one shared result per buffer change
 and cursor position.
-No highlighter or `nvim-treesitter.configs` module is needed.
+No active highlighter is needed for the LaTeX conditions.
 LaTeX injected into Markdown works when the host parsers and injection queries
 are installed; the host buffer is never forced through the LaTeX parser.
 
@@ -71,8 +77,6 @@ require("nvim-treesitter").install({ "latex", "markdown", "markdown_inline" })
 ```
 
 Follow that plugin's current Neovim requirements and run `:TSUpdate` when updating it.
-The conditions use native APIs available in Neovim 0.11 and later; the parser
-installer can require a newer version.
 Parsers installed by other managers also work.
 `tex` and `plaintex` filetypes default to the `latex` parser unless explicitly mapped
 to another language.

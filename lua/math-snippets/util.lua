@@ -9,8 +9,7 @@ end
 
 -- Visual-selection helper adapted from ejmastnak.
 function M.get_visual(_, parent)
-	local env = parent.snippet.env
-	local selection = env.LS_SELECT_RAW or env.SELECT_RAW
+	local selection = parent.snippet.env.LS_SELECT_RAW
 	return ls.snippet_node(nil, ls.insert_node(1, selection))
 end
 

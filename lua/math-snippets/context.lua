@@ -6,7 +6,7 @@ local mkcond = require("luasnip.extras.conditions").make_condition
 local function in_comments()
 	local bufnr = api.nvim_get_current_buf()
 	local cursor = api.nvim_win_get_cursor(0)
-	local captures = vim.treesitter.get_captures_at_pos(bufnr, cursor[1] - 1, cursor[2] - 1)
+	local captures = vim.treesitter.get_captures(bufnr, { cursor[1] - 1, cursor[2] - 1 })
 
 	for _, capture in ipairs(captures) do
 		if capture.capture == "comment" then

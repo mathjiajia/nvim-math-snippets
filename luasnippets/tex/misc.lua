@@ -10,7 +10,7 @@ local function appended_space_after_insert()
 				vim.v.char = " " .. vim.v.char
 			end
 		end,
-		buffer = 0,
+		buf = 0,
 		once = true,
 		desc = "Auto Add a Space after Inline Math"
 	})
@@ -32,44 +32,44 @@ local function automatic_inline_math(trig, name)
 end
 
 return nil, {
-	automatic_inline_math("(%s)([b-zB-HJ-Z0-9])([,;.%-%)]?)(%s+)", "single-letter variable"),
-	automatic_inline_math("(%s)([0-9]+[a-zA-Z]+)([,;.%)]?)(%s+)", "surround word starting with number"),
-	automatic_inline_math("(%s)(%w[-_+=><]%w)([,;.%)]?)(%s+)", "surround i+1"),
-	s({
-		trig = "mk",
-		name = "inline math",
-		desc = "Insert inline Math Environment.",
-		hidden = true,
-		condition = tex.in_text
-	},
-		fmt([[\({}\){}]], { i(1), i(0) }), {
-			callbacks = {
-				[-1] = {
-					[events.leave] = appended_space_after_insert
+		automatic_inline_math("(%s)([b-zB-HJ-Z0-9])([,;.%-%)]?)(%s+)", "single-letter variable"),
+		automatic_inline_math("(%s)([0-9]+[a-zA-Z]+)([,;.%)]?)(%s+)", "surround word starting with number"),
+		automatic_inline_math("(%s)(%w[-_+=><]%w)([,;.%)]?)(%s+)", "surround i+1"),
+		s({
+			trig = "mk",
+			name = "inline math",
+			desc = "Insert inline Math Environment.",
+			hidden = true,
+			condition = tex.in_text
+		},
+			fmt([[\({}\){}]], { i(1), i(0) }), {
+				callbacks = {
+					[-1] = {
+						[events.leave] = appended_space_after_insert
+					}
 				}
-			}
-		}),
-	s({
-		trig = "dm",
-		name = "display math",
-		desc = "Insert display Math Environment."
-	}, fmt([[
+			}),
+		s({
+			trig = "dm",
+			name = "display math",
+			desc = "Insert display Math Environment."
+		}, fmt([[
 			\[
 				{}
 			\]
 			{}
 			]], { i(1), i(0) }), opts),
-	s({
-		trig = "pha",
-		name = "phantom",
-		desc = "create a space",
-		hidden = true,
-		condition = expand_line_begin * tex.in_align
-	}, { t("&\\phantom{\\;=\\;} ") }),
+		s({
+			trig = "pha",
+			name = "phantom",
+			desc = "create a space",
+			hidden = true,
+			condition = expand_line_begin * tex.in_align
+		}, { t("&\\phantom{\\;=\\;} ") }),
 
-	s({
-		trig = "ni",
-		name = "non-indented paragraph",
-		desc = "Insert non-indented paragraph."
-	}, { t({ "\\noindent", "" }) }, opts)
-}
+		s({
+			trig = "ni",
+			name = "non-indented paragraph",
+			desc = "Insert non-indented paragraph."
+		}, { t({ "\\noindent", "" }) }, opts)
+	}

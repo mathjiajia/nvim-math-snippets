@@ -36,7 +36,7 @@ end
 
 local function check_case(name, source, expected, filetype, language)
 	local buffer = fixture(source, filetype, language)
-	local ok, err = pcall(function()
+	local ok, err = pcall(function ()
 		for _, property in ipairs({ "in_math", "in_align", "in_bullets", "in_tikzcd" }) do
 			equal(name .. ": " .. property, conditions[property](), expected[property] or false)
 		end
@@ -76,7 +76,13 @@ check_case("before math opening delimiter", "text |\\(x\\)", {})
 check_case("before opener at start of buffer", "|\\(x\\)", {})
 check_case("before dollar at start of buffer", "|$x$", {})
 check_case("before comment in math at column zero", "\\[\n|% comment\n\\]", { in_math = true })
-check_case("before end environment at column zero", "\\begin{align}\nx\n|\\end{align}", { in_math = true, in_align = true })
+check_case(
+	"before end environment at column zero", "\\begin{align}\nx\n|\\end{align}",
+	{
+		in_math = true,
+		in_align = true
+	}
+)
 check_case("unicode byte columns", "中文 \\(α + β|\\)", { in_math = true })
 check_case("comment outside math", "% $x|$", {})
 check_case("comment inside math", "\\[x % comme|nt\ny\\]", {})
@@ -88,7 +94,9 @@ check_case("citation keys inside math", "\\(x \\cite{ke|y}\\)", {})
 check_case("math in citation note", "\\cite[see \\(x|\\)]{key}", { in_math = true })
 check_case("math in theorem title", "\\begin{theorem}[\\(X|\\)]words\\end{theorem}", { in_math = true })
 
-for _, command in ipairs({ "text", "textbf", "textit", "textrm", "textnormal", "mbox", "operatorname", "tag", "label", "ref" }) do
+for _, command in ipairs(
+	{ "text", "textbf", "textit", "textrm", "textnormal", "mbox", "operatorname", "tag", "label", "ref" }
+) do
 	check_case(command .. " argument inside math", "\\(x \\" .. command .. "{word|} y\\)", {})
 end
 check_case("nested math inside text", "\\(x \\text{words \\(y|\\) more words} z\\)", { in_math = true })
@@ -103,29 +111,83 @@ check_case("ensuremath inside text command", "\\(\\text{word \\ensuremath{x|}}\\
 check_case("after ensuremath closing brace", "\\ensuremath{x}|", {})
 
 for _, environment in ipairs({ "equation", "equation*", "displaymath", "math", "gather", "gathered", "multline" }) do
-	check_case(environment .. " math", "\\begin{" .. environment .. "}\nx|\n\\end{" .. environment .. "}", { in_math = true })
+	check_case(
+		environment .. " math", "\\begin{" .. environment .. "}\nx|\n\\end{" .. environment .. "}",
+		{
+			in_math = true
+		}
+	)
 end
-for _, environment in ipairs({ "align", "align*", "aligned", "alignedat", "alignat", "split", "eqnarray", "flalign", "array", "matrix", "pmatrix", "bmatrix", "Bmatrix", "vmatrix", "Vmatrix", "smallmatrix", "cases" }) do
+for _, environment in ipairs(
+	{
+		"align", "align*", "aligned", "alignedat", "alignat", "split", "eqnarray", "flalign", "array", "matrix", "pmatrix",
+		"bmatrix", "Bmatrix", "vmatrix", "Vmatrix", "smallmatrix", "cases"
+	}
+) do
 	local argument = ({ alignedat = "{2}", alignat = "{2}", array = "{cc}" })[environment] or ""
-	check_case(environment .. " alignment", "\\begin{" .. environment .. "}" .. argument .. "\nx|\n\\end{" .. environment .. "}", { in_math = true, in_align = true })
+	check_case(
+		environment .. " alignment",
+		"\\begin{" .. environment
+			.. "}" .. argument
+			.. "\nx|\n\\end{" .. environment
+			.. "}",
+		{
+			in_math = true,
+			in_align = true
+		}
+	)
 end
 for _, environment in ipairs({ "pmatrix*", "dcases", "rcases", "drcases", "dcasesra", "drcasesra" }) do
-	check_case(environment .. " family", "\\begin{" .. environment .. "}x|\\end{" .. environment .. "}", { in_math = true, in_align = true })
+	check_case(
+		environment .. " family", "\\begin{" .. environment .. "}x|\\end{" .. environment .. "}",
+		{
+			in_math = true,
+			in_align = true
+		}
+	)
 end
 check_case("multlined family", "\\begin{multlined}x|\\end{multlined}", { in_math = true })
 -- Alignment names intentionally match families, including custom variants.
 for _, environment in ipairs({ "alignment", "alignatfoo", "xmatrix", "matrixnotation", "rcasesra" }) do
-	check_case(environment .. " alignment family", "\\begin{" .. environment .. "}x|\\end{" .. environment .. "}", { in_math = true, in_align = true })
+	check_case(
+		environment .. " alignment family", "\\begin{" .. environment .. "}x|\\end{" .. environment .. "}",
+		{
+			in_math = true,
+			in_align = true
+		}
+	)
 end
 check_case("custom math family", "\\begin{displaymathematics}x|\\end{displaymathematics}", { in_math = true })
 check_case("subequations preserves text", "\\begin{subequations}words|\\end{subequations}", {})
-check_case("math inside subequations", "\\begin{subequations}\\begin{equation}x|\\end{equation}\\end{subequations}", { in_math = true })
+check_case(
+	"math inside subequations", "\\begin{subequations}\\begin{equation}x|\\end{equation}\\end{subequations}",
+	{
+		in_math = true
+	}
+)
 check_case("custom text command", "\\(\\mytext{word|}\\)", {})
 check_case("textcolor preserves math", "\\(\\textcolor{red}{x|}\\)", { in_math = true })
 check_case("textwidth is not a text-mode command", "\\(\\textwidth{x|}\\)", { in_math = true })
 check_case("boxed preserves math", "\\(\\boxed{x|}\\)", { in_math = true })
 check_case("sin is not a unit command", "\\(\\sin{x|}\\)", { in_math = true })
 check_case("custom reference command", "\\(\\zcustomref{eq:a|}\\)", {})
+-- Name matching is case-sensitive; only the explicitly anchored names are exact.
+for _, command in ipairs({ "emph", "fbox", "SI", "si", "qty", "unit", "num", "SI*", "zcustomlabel", "zcustomrefmore" }) do
+	check_case(command .. " text or opaque argument", "\\(\\" .. command .. "{word|}\\)", {})
+end
+for _, command in ipairs({ "SIunit", "units", "number", "myText", "Box", "Zref", "azref" }) do
+	check_case(command .. " preserves math", "\\(\\" .. command .. "{x|}\\)", { in_math = true })
+end
+for _, environment in ipairs({ "Split", "splitextra", "extrasplit", "ALIGN" }) do
+	check_case(environment .. " is not a math family", "\\begin{" .. environment .. "}x|\\end{" .. environment .. "}", {})
+end
+for _, environment in ipairs({ "arrayextra", "alignatfoo", "alignedatextra" }) do
+	check_case(
+		environment .. " first group is math", "\\begin{" .. environment .. "}{x|}\\end{" .. environment .. "}",
+		{ in_math = true, in_align = true }
+	)
+end
+check_case("starred alignedat column count", "\\begin{alignedat*}{2|}x\\end{alignedat*}", {})
 check_case("url inside math", "\\(\\url{https://example.org/x|}\\)", {})
 check_case("multiline begin name", "\\begin\n{aligned}\nx|\n\\end{aligned}", { in_math = true, in_align = true })
 check_case("array column specification", "\\begin{array}{c|c}x\\end{array}", {})
@@ -139,8 +201,26 @@ check_case("text inside alignment", "\\begin{align}x + \\text{words|}\\end{align
 check_case("comment inside alignment", "\\begin{align}\nx % words|\n\\end{align}", {})
 check_case("tikzcd", "\\begin{tikzcd}A|\\end{tikzcd}", { in_math = true, in_tikzcd = true })
 check_case("tikzcd text", "\\begin{tikzcd}\\text{words|}\\end{tikzcd}", {})
+-- The nearest math scope owns alignment/diagram flags; lists require text mode.
+check_case("inline math inside alignment", "\\begin{align}\\(x|\\)\\end{align}", { in_math = true })
+check_case("ensuremath inside alignment", "\\begin{align}\\ensuremath{x|}\\end{align}", { in_math = true })
+check_case("inline math inside tikzcd", "\\begin{tikzcd}\\(A|\\)\\end{tikzcd}", { in_math = true })
+check_case(
+	"text inside math inside list", "\\begin{itemize}\\item \\(\\text{word|}\\)\\end{itemize}",
+	{ in_bullets = true }
+)
+check_case(
+	"math inside text inside list", "\\begin{itemize}\\item \\(\\text{word \\(x|\\)}\\)\\end{itemize}",
+	{ in_math = true }
+)
+check_case("opaque command inside list", "\\begin{itemize}\\item \\zcref{eq:a|}\\end{itemize}", {})
 for _, environment in ipairs({ "itemize", "enumerate" }) do
-	check_case(environment .. " text", "\\begin{" .. environment .. "}\\item words|\\end{" .. environment .. "}", { in_bullets = true })
+	check_case(
+		environment .. " text", "\\begin{" .. environment .. "}\\item words|\\end{" .. environment .. "}",
+		{
+			in_bullets = true
+		}
+	)
 end
 check_case("custom list family", "\\begin{compactitemize}\\item words|\\end{compactitemize}", { in_bullets = true })
 check_case("math within a list", "\\begin{itemize}\\item \\(x|\\)\\end{itemize}", { in_math = true })
@@ -151,13 +231,20 @@ check_case("no installed parser", "words $x|$", {}, "math_snippets_no_parser", f
 check_case("markdown prose", "Plain wo|rds", {}, "markdown", "markdown")
 check_case("markdown inline injection", "Words $x|+y$ here", { in_math = true }, "markdown", "markdown")
 check_case("markdown inline code", "Code `$x|+y$` here", {}, "markdown", "markdown")
-check_case("markdown latex fence injection", "```latex\n\\begin{aligned}x|\\end{aligned}\n```", { in_math = true, in_align = true }, "markdown", "markdown")
+check_case(
+	"markdown latex fence injection", "```latex\n\\begin{aligned}x|\\end{aligned}\n```",
+	{
+		in_math = true,
+		in_align = true
+	},
+	"markdown", "markdown"
+)
 check_case("markdown code fence without latex injection", "```text\n$x|+y$\n```", {}, "markdown", "markdown")
 
 -- Updating an attached parser must invalidate context even when LuaSnip does
 -- not pass a matched_trigger or passes one longer than a single character.
 local buffer = fixture("words|", "tex", "latex")
-local ok, err = pcall(function()
+local ok, err = pcall(function ()
 	equal("before edit", conditions.in_math(), false)
 	vim.api.nvim_buf_set_lines(buffer, 0, -1, false, { "\\(x\\)" })
 	vim.api.nvim_win_set_cursor(0, { 1, 3 })
@@ -189,9 +276,9 @@ buffer = fixture("$x|$", "tex", "latex")
 local parser = vim.treesitter.get_parser(buffer, "latex")
 local original_parse = parser.parse
 local original_get_parser = vim.treesitter.get_parser
-ok, err = pcall(function()
+ok, err = pcall(function ()
 	local parses = 0
-	parser.parse = function(self, ...)
+	parser.parse = function (self, ...)
 		parses = parses + 1
 		return original_parse(self, ...)
 	end
@@ -209,32 +296,23 @@ ok, err = pcall(function()
 	equal("parser invalidation requires a new parse", parses > initial_parses, true)
 	equal("parser invalidation needs no buffer edit", vim.api.nvim_buf_get_changedtick(buffer), tick)
 
-	vim.api.nvim_buf_set_lines(buffer, 0, -1, false, { "$y$" })
-	vim.api.nvim_win_set_cursor(0, { 1, 2 })
-	parser.parse = function()
-		parses = parses + 1
-		return nil
-	end
-	equal("nil parse result fails closed", conditions.in_math(), false)
-	local failed_parses = parses
-	equal("nil parse result retries", conditions.in_math(), false)
-	equal("failed parses are not cached", parses, failed_parses + 1)
-	parser.parse = original_parse
-	equal("nil parse result recovers without editing", conditions.in_math(), true)
-
 	vim.api.nvim_buf_set_lines(buffer, 0, -1, false, { "$z$" })
 	vim.api.nvim_win_set_cursor(0, { 1, 2 })
-	parser.parse = function()
+	local failed_parses = 0
+	parser.parse = function ()
+		failed_parses = failed_parses + 1
 		error("simulated parser failure")
 	end
 	equal("parse exception fails closed", conditions.in_math(), false)
+	equal("parse exception retries", conditions.in_math(), false)
+	equal("failed parses are not cached", failed_parses, 2)
 	parser.parse = original_parse
 	equal("parse exception recovers without editing", conditions.in_math(), true)
 
-	vim.treesitter.get_parser = function()
-		error("simulated unavailable parser")
+	vim.treesitter.get_parser = function ()
+		return nil, "simulated unavailable parser"
 	end
-	equal("missing parser exception is safe", conditions.in_math(), false)
+	equal("missing parser nil result is safe", conditions.in_math(), false)
 	equal("missing parser text complement", conditions.in_text(), true)
 	vim.treesitter.get_parser = original_get_parser
 	equal("parser lookup recovers", conditions.in_math(), true)

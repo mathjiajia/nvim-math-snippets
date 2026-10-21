@@ -3,11 +3,17 @@ local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
 local pattern_engine = require("luasnip.nodes.util.trig_engines").pattern
 
 local opts = { condition = tex.in_text }
+local spacing_group = vim.api.nvim_create_augroup("math-snippets.inline-space", { clear = true })
 
 local function appended_space_after_insert()
+	-- Reentering and leaving a snippet must not stack pending spaces.
+	vim.api.nvim_clear_autocmds({ group = spacing_group, event = "InsertCharPre", buf = 0 })
 	vim.api.nvim_create_autocmd("InsertCharPre", {
+		group = spacing_group,
 		callback = function ()
-			if vim.v.char:find("%a") then
+			local col = vim.api.nvim_win_get_cursor(0)[2]
+			local before = vim.api.nvim_get_current_line():sub(1, col)
+			if before:sub(-2) == [[\)]] and vim.v.char:find("%a") then
 				vim.v.char = " " .. vim.v.char
 			end
 		end,

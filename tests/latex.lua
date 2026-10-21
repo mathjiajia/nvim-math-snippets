@@ -351,6 +351,13 @@ buffer = fixture("$x|$", "tex", "latex")
 local parser = vim.treesitter.get_parser(buffer, "latex")
 local original_parse = parser.parse
 local original_get_parser = vim.treesitter.get_parser
+local original_notify = vim.notify
+local notifications = {}
+local function capture_notification(message, level)
+	notifications[#notifications + 1] = { message = message, level = level }
+end
+-- Keep the real notify_once implementation so repeated failures test its deduplication.
+vim.notify = capture_notification
 ok, err = pcall(function ()
 	local parses = 0
 	parser.parse = function (self, ...)
@@ -379,21 +386,32 @@ ok, err = pcall(function ()
 		error("simulated parser failure")
 	end
 	equal("parse exception fails closed", conditions.in_math(), false)
+	equal("parse exception reports one warning", #notifications, 1)
+	local notification = notifications[1] or {}
+	equal("parse exception warning level", notification.level, vim.log.levels.WARN)
+	local message = notification.message or ""
+	equal("parse exception identifies the plugin", message:find("nvim-math-snippets: context detection failed: ", 1, true), 1)
+	equal("parse exception includes its reason", message:find("simulated parser failure", 1, true) ~= nil, true)
 	equal("parse exception retries", conditions.in_math(), false)
-	equal("failed parses are not cached", failed_parses, 2)
+	equal("parse exception text complement", conditions.in_text(), true)
+	equal("failed parses are not cached", failed_parses, 3)
+	equal("repeated parse exceptions do not repeat the warning", #notifications, 1)
 	parser.parse = original_parse
 	equal("parse exception recovers without editing", conditions.in_math(), true)
 
+	local warnings_before_lookup = #notifications
 	vim.treesitter.get_parser = function ()
 		return nil, "simulated unavailable parser"
 	end
 	equal("missing parser nil result is safe", conditions.in_math(), false)
 	equal("missing parser text complement", conditions.in_text(), true)
+	equal("missing parser stays quiet", #notifications, warnings_before_lookup)
 	vim.treesitter.get_parser = original_get_parser
 	equal("parser lookup recovers", conditions.in_math(), true)
 end)
 parser.parse = original_parse
 vim.treesitter.get_parser = original_get_parser
+vim.notify = original_notify
 if not ok then
 	failures[#failures + 1] = "cache and failure recovery checks: " .. tostring(err)
 end
@@ -401,18 +419,22 @@ vim.api.nvim_buf_delete(buffer, { force = true })
 
 -- An unavailable parser on the first lookup must not create a cached result.
 buffer = fixture("$x|$", "tex", "latex")
+vim.notify = capture_notification
 ok, err = pcall(function ()
 	local tick = vim.api.nvim_buf_get_changedtick(buffer)
+	local warnings_before_lookup = #notifications
 	vim.treesitter.get_parser = function ()
 		return nil, "simulated initially unavailable parser"
 	end
 	equal("initially missing parser fails closed", conditions.in_math(), false)
 	equal("initially missing parser text complement", conditions.in_text(), true)
+	equal("initially missing parser stays quiet", #notifications, warnings_before_lookup)
 	vim.treesitter.get_parser = original_get_parser
 	equal("initially missing parser recovers without editing", conditions.in_math(), true)
 	equal("initial parser recovery needs no buffer edit", vim.api.nvim_buf_get_changedtick(buffer), tick)
 end)
 vim.treesitter.get_parser = original_get_parser
+vim.notify = original_notify
 if not ok then
 	failures[#failures + 1] = "initial parser recovery checks: " .. tostring(err)
 end

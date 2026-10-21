@@ -128,6 +128,30 @@ check("comment captures", function ()
 	end, { 1, 4 })
 end)
 
+check("specialized comment captures", function ()
+	local context = require("math-snippets.context")
+	local ok, err = pcall(function ()
+		for _, case in ipairs({
+			{ "comment.documentation", true }, { "comment.todo", true }, { "comment.documentation.latex", true },
+			{ "commentish", false }, { "commentary", false }, { "punctuation.comment", false }
+		}) do
+			vim.treesitter.query.set("latex", "highlights", "(line_comment) @" .. case[1])
+			with_buffer({ "% comment" }, function ()
+				vim.treesitter.start(0, "latex")
+				local captures = vim.treesitter.get_captures(0, { 0, 3 })
+				local names = vim.tbl_map(function (capture) return capture.capture end, captures)
+				equal("fixture has only @" .. case[1], names, { case[1] })
+				equal("comment detection for @" .. case[1], context.in_comments(), case[2])
+				vim.treesitter.stop(0)
+			end, { 1, 4 })
+		end
+	end)
+	vim.treesitter.query.set("latex", "highlights", nil)
+	if not ok then
+		error(err)
+	end
+end)
+
 check("Markdown conditions", function ()
 	local code = find("markdown", "trigger", "code")
 	with_buffer({ "code" }, function ()
@@ -240,13 +264,13 @@ check("inline math next character spacing", function ()
 	for _, character in ipairs({ "a", "Z", ".", ",", ")", " ", "7", "中" }) do
 		with_buffer({ "" }, function ()
 			vim.api.nvim_create_autocmd("InsertCharPre", {
-				buffer = 0,
+				buf = 0,
 				once = true,
 				callback = function () vim.v.char = character end
 			})
 			ls.snip_expand(find("tex/misc", "trigger", "mk"))
 			ls.jump(1)
-			vim.api.nvim_exec_autocmds("InsertCharPre", { buffer = 0 })
+			vim.api.nvim_exec_autocmds("InsertCharPre", { buf = 0 })
 			local expected = (character == "a" or character == "Z") and " " .. character or character
 			equal("inline math next character " .. character, vim.v.char, expected)
 		end)

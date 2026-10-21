@@ -91,6 +91,10 @@ local function with_buffer(name, callback)
 	if fixture.other then
 		request("nvim_buf_delete", fixture.other, { force = true })
 	end
+	-- Queued input can display an autocmd error without failing the RPC request.
+	-- Check after cleanup too; this recognizes Neovim's English Lua error heading.
+	local messages = request("nvim_exec2", "messages", { output = true }).output
+	assert(not messages:find("Error in ", 1, true), name .. ": " .. messages)
 	scenarios = scenarios + 1
 end
 
@@ -143,8 +147,8 @@ local function run()
 			api.nvim_set_current_buf(buffer)
 			vim.bo[buffer].filetype = "tex"
 			vim.bo[buffer].undolevels = 100
-			vim.keymap.set({ "i", "s" }, "<F6>", function () ls.jump(1) end, { buffer = buffer })
-			vim.keymap.set({ "i", "s" }, "<F7>", function () ls.jump(-1) end, { buffer = buffer })
+			vim.keymap.set({ "i", "s" }, "<F6>", function () ls.jump(1) end, { buf = buffer })
+			vim.keymap.set({ "i", "s" }, "<F7>", function () ls.jump(-1) end, { buf = buffer })
 			vim.treesitter.get_parser(buffer, "latex")
 			return buffer
 		end
@@ -177,6 +181,21 @@ local function run()
 		fixture.expected = [[\(x\),a]]
 	end)
 
+	with_buffer("typing away from math does not insert a space", function ()
+		at_math_exit()
+		input("<Home>", { cursor = { 1, 0 }, mode = "i", events = { "CursorMovedI" } })
+		type_text("a", [[a\(x\)]])
+		fixture.expected = [[a\(x\)]]
+	end)
+
+	with_buffer("repeated math exit inserts only one space", function ()
+		at_math_exit()
+		input("<F7>", { mode = "s" })
+		input("<F6>", { cursor = { 1, 5 }, mode = "i" })
+		type_text("a", [[\(x\) a]])
+		fixture.expected = [[\(x\) a]]
+	end)
+
 	with_buffer("moving away and back retains spacing", function ()
 		at_math_exit()
 		input("<Left>", { cursor = { 1, 4 }, mode = "i", events = { "CursorMovedI" } })
@@ -197,8 +216,8 @@ local function run()
 		fixture.other = execute([[
 			local original = ...
 			local other = vim.api.nvim_create_buf(false, true)
-			vim.keymap.set("i", "<F8>", function () vim.api.nvim_set_current_buf(other) end, { buffer = original })
-			vim.keymap.set("i", "<F8>", function () vim.api.nvim_set_current_buf(original) end, { buffer = other })
+			vim.keymap.set("i", "<F8>", function () vim.api.nvim_set_current_buf(other) end, { buf = original })
+			vim.keymap.set("i", "<F8>", function () vim.api.nvim_set_current_buf(original) end, { buf = other })
 			return other
 		]], fixture.buffer)
 		at_math_exit()
@@ -220,6 +239,22 @@ local function run()
 		fixture.expected = [[\(x\) ab]]
 	end)
 
+	local accepted, err = pcall(with_buffer, "displayed autocmd error is rejected", function ()
+		execute([[
+			vim.api.nvim_create_autocmd("InsertEnter", {
+				buf = ...,
+				once = true,
+				callback = function () error("INTEGRATION INJECTED INSERTENTER ERROR") end
+			})
+		]], fixture.buffer)
+		input("i", { mode = "i", events = { "InsertEnter" } })
+		fixture.expected = ""
+	end)
+	equal("displayed autocmd error fails the scenario", accepted, false)
+	equal("failure includes the displayed error",
+		tostring(err):find("INTEGRATION INJECTED INSERTENTER ERROR", 1, true) ~= nil, true)
+	request("nvim_command", "messages clear")
+	scenarios = scenarios + 1
 end
 
 -- Inputs are separated by assertions on their effects and the editor events.

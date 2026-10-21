@@ -9,7 +9,7 @@ local function in_comments()
 	local captures = vim.treesitter.get_captures(bufnr, { cursor[1] - 1, cursor[2] - 1 })
 
 	for _, capture in ipairs(captures) do
-		if capture.capture == "comment" then
+		if capture.capture == "comment" or capture.capture:match("^comment%.") then
 			return true
 		end
 	end

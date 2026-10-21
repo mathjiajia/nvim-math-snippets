@@ -81,6 +81,8 @@ filetype mappings. The module uses those mappings directly; TeX filetypes such a
 `tex` and `plaintex` should already resolve to `latex` in your editor setup.
 
 Missing/unavailable parsers safely return false for positive conditions.
+Unexpected context-detection errors produce a warning once per distinct message;
+positive conditions still return false, and subsequent calls retry detection.
 Incomplete formulas are recognized when Tree-sitter recovers a math node with a
 missing closer.
 Malformed input that only produces `ERROR` nodes, such as an unmatched `\begin`,
@@ -131,6 +133,8 @@ trigger guards, dynamic expansions, visual selections, and optional completion.
 The integration suite types into an embedded Neovim editor, waits for actual input
 events, and checks jumps, spacing, movement, buffer changes, and undo/redo. Input
 failures produce a nonzero exit with the expected state and recent event trace.
+An injected-error scenario also verifies that displayed Lua autocmd errors fail
+the integration tests.
 
 For an individual suite, replace `tests/run.lua` in the headless command with
 `tests/latex.lua`, `tests/snippets.lua`, or `tests/integration.lua`, with the same

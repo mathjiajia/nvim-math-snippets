@@ -318,6 +318,10 @@ local function get_context()
 	local range = { row, row + 1 }
 	local parsed, context = pcall(parse_context, parser, bufnr, row, col, range)
 	if not parsed then
+		vim.notify_once(
+			"nvim-math-snippets: context detection failed: " .. tostring(context),
+			vim.log.levels.WARN
+		)
 		-- Do not cache failures: a parser/query can become available without an edit.
 		return EMPTY
 	end

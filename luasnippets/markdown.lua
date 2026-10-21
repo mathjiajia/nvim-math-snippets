@@ -12,8 +12,7 @@ local snips = {
 	),
 
 	s(
-		{ trig = "code", name = "Insert fenced code block" },
-		fmt([[
+		{ trig = "code", name = "Insert fenced code block" }, fmt([[
 			``` {}
 			{}
 			```
@@ -45,8 +44,7 @@ local snips = {
 }
 
 local autosnips = {
-	s({ trig = ";b", name = "bold" }, fmt("**{}**", { i(1) })),
-	s({ trig = ";i", name = "italic" }, fmt("*{}*", { i(1) })),
+	s({ trig = ";b", name = "bold" }, fmt("**{}**", { i(1) })), s({ trig = ";i", name = "italic" }, fmt("*{}*", { i(1) })),
 	s({ trig = ";c", name = "code" }, fmt("`{}`", { i(1) })),
 	s({ trig = ";s", name = "strikethrough" }, fmt("~~{}~~", { i(1) }))
 }

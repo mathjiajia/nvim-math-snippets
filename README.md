@@ -33,13 +33,13 @@ selection for the next snippet.
 
 `require("math-snippets.latex")` provides composable LuaSnip conditions:
 
-| Condition | When it matches |
-| --- | --- |
-| `in_math` | Inline/display math, math environments, matrices, cases, `tikzcd`, and `\ensuremath{...}` |
-| `in_text` | The complement of `in_math`, including when no parser is available |
-| `in_align` | Math in environment names containing `align`, `array`, `matrix`, or `case`, or named `split` |
-| `in_bullets` | Text in environment names containing `itemize`, `enumerate`, or `description` |
-| `in_tikzcd` | Math in a `tikzcd` environment |
+| Condition    | When it matches                                                                              |
+| ------------ | -------------------------------------------------------------------------------------------- |
+| `in_math`    | Inline/display math, math environments, matrices, cases, `tikzcd`, and `\ensuremath{...}`    |
+| `in_text`    | The complement of `in_math`, including when no parser is available                           |
+| `in_align`   | Math in environment names containing `align`, `array`, `matrix`, or `case`, or named `split` |
+| `in_bullets` | Text in environment names containing `itemize`, `enumerate`, or `description`                |
+| `in_tikzcd`  | Math in a `tikzcd` environment                                                               |
 
 The nearest math/text scope takes precedence: `\text{...}` disables math snippets,
 while explicit math nested inside it enables them again.

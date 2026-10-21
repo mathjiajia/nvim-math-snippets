@@ -128,26 +128,24 @@ end
 local EMPTY = { math = false, align = false, bullets = false, tikzcd = false }
 
 ---@class math_snippets.Scope
----@field math_mode        boolean? nil until a mode switch is found
----@field math_environment string? Environment establishing the nearest math mode
+---@field math_mode        boolean?  nil until a mode switch is found
+---@field math_environment string?   Environment establishing the nearest math mode
 ---@field environments     string[]? Enclosing environments, nearest first
 
 ---@param node      TSNode
 ---@param kind      string
 ---@param math_node boolean
 ---@param env       string?
----@param command   string|false|nil
+---@param command   string | false | nil
 ---@param row       integer
 ---@param col       integer
 ---@return boolean?
 local function node_math_mode(node, kind, math_node, env, command, row, col)
 	-- textcolor/textwidth and the numbering wrapper subequations preserve mode.
-	if kind == "text_mode"
-		or (command and command ~= "textcolor" and command ~= "textwidth" and TEXT_COMMANDS(command)) then
+	if kind == "text_mode" or (command and command ~= "textcolor" and command ~= "textwidth" and TEXT_COMMANDS(command)) then
 		return false
 	end
-	if math_node or ALIGN_ENVS(env)
-		or (env and env ~= "subequations" and MATH_ENVS(env)) or command == "ensuremath" then
+	if math_node or ALIGN_ENVS(env) or (env and env ~= "subequations" and MATH_ENVS(env)) or command == "ensuremath" then
 		return true
 	end
 	-- An empty $|$ pair is lexed as one $$ token rather than inline_formula.

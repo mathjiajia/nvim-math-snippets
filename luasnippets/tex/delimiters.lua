@@ -36,20 +36,20 @@ local function bracket_snippet(trig, name, template)
 end
 
 return nil, {
-	bracket_snippet("bk", "brackets", [[<> <><><>]]),
-	bracket_snippet("lr", "left right", [[\left<> <>\right<><>]]),
-	s({
-		trig = "cvec",
-		name = "column vector",
-		hidden = true,
-		condition = expand_line_begin * tex.in_math
-	}, fmta(
-		[[
+		bracket_snippet("bk", "brackets", [[<> <><><>]]),
+		bracket_snippet("lr", "left right", [[\left<> <>\right<><>]]),
+		s({
+			trig = "cvec",
+			name = "column vector",
+			hidden = true,
+			condition = expand_line_begin * tex.in_math
+		}, fmta(
+			[[
 			\begin{pmatrix}
 				<>_<> \\
 				\vdots \\
 				<>_<>
 			\end{pmatrix}
 			]], { i(1, "x"), i(2, "1"), rep(1), i(3, "n") }
-	))
-}
+		))
+	}

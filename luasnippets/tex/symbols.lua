@@ -27,8 +27,7 @@ local function single_command_snippet(context, cmd, optional_arg)
 	guard_command(context, cmd)
 	local optional = optional_arg and c(1, { t(""), sn(nil, { t("["), i(1, "opt"), t("]") }) }) or t("")
 	return s(
-		context, fmta(cmd .. [[<>{<>}<>]], { optional, d(optional_arg and 2 or 1, util.get_visual), i(0) }),
-		math_opts
+		context, fmta(cmd .. [[<>{<>}<>]], { optional, d(optional_arg and 2 or 1, util.get_visual), i(0) }), math_opts
 	)
 end
 
@@ -40,7 +39,8 @@ local function arrow_snippet(trig, name, command)
 			end
 			return sn(nil, { t("\\" .. command .. " ") })
 		end)
-	}, math_opts)
+	}, math_opts
+	)
 end
 
 local function indexed_greek_snippet(trig, name, template)
@@ -48,7 +48,8 @@ local function indexed_greek_snippet(trig, name, template)
 		f(function (_, snip)
 			return template:format(snip.captures[1])
 		end, {})
-	}, math_opts)
+	}, math_opts
+	)
 end
 
 local autosnips = {
@@ -126,14 +127,8 @@ local autosnips = {
 	),
 
 	-- HACK: <Jia> do not use condition since it cannot be triggered
-	s(
-		{ trig = "^^", name = "auto superscript", wordTrig = false, hidden = true },
-		fmta([[^{<>}<>]], { i(1), i(0) })
-	),
-	s(
-		{ trig = "__", name = "auto subscript", wordTrig = false, hidden = true },
-		fmta([[_{<>}<>]], { i(1), i(0) })
-	),
+	s({ trig = "^^", name = "auto superscript", wordTrig = false, hidden = true }, fmta([[^{<>}<>]], { i(1), i(0) })),
+	s({ trig = "__", name = "auto subscript", wordTrig = false, hidden = true }, fmta([[_{<>}<>]], { i(1), i(0) })),
 
 	s(
 		{ trig = "==", name = "align equals", wordTrig = false, hidden = true }, { t("& = ") }, { condition = tex.in_align }

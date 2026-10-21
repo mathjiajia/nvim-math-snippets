@@ -28,13 +28,16 @@ local function auto_backslash_snippet(trig)
 end
 
 local function cohomology_snippet(trig, name)
-	return s({ trig = trig, name = name, trigEngine = "pattern", hidden = true },
+	return s(
+		{ trig = trig, name = name, trigEngine = "pattern", hidden = true },
 		fmta([[<><>)]], {
 			f(function (_, snip)
 				return snip.captures[1] .. "^{" .. snip.captures[2] .. "}(" .. snip.captures[3] .. ","
 			end, {}),
 			i(1)
-		}), opts)
+		}),
+		opts
+	)
 end
 
 local snips = {

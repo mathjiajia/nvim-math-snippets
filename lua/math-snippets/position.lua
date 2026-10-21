@@ -26,8 +26,4 @@ local function show_line_begin(line_to_cursor)
 	return line_to_cursor:match("^%s*%S*$") ~= nil
 end
 
-return {
-	in_beamer = mkcond(in_beamer),
-	on_top = mkcond(on_top),
-	show_line_begin = mkcond(show_line_begin)
-}
+return { in_beamer = mkcond(in_beamer), on_top = mkcond(on_top), show_line_begin = mkcond(show_line_begin) }

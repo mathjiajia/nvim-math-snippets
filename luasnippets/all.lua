@@ -3,25 +3,31 @@ local username = (vim.env.USER or ""):gsub("^%l", string.upper)
 local function todo_snippet(trig, aliases)
 	local name = table.concat(aliases, "|")
 	local context = { trig = trig, name = name .. " comment", desc = name .. " comment with a signature-mark" }
-	return s(context, fmt("{}{}: {} {}{}{}", {
-		f(function ()
-			return vim.bo.commentstring:match("^(.-)%%s") or ""
-		end),
-		c(1, vim.tbl_map(function (alias)
-			return i(nil, alias)
-		end, aliases)),
-		i(3),
-		c(2, {
-			fmt("<{}>", i(1, username)),
-			fmt("<{}{}>", { i(1, os.date("%d-%m-%y")), i(2, ", " .. username) }),
-			fmt("<{}>", i(1, os.date("%d-%m-%y"))),
-			t("")
-		}),
-		i(0),
-		f(function ()
-			return vim.bo.commentstring:match("%%s(.*)$") or ""
-		end)
-	}))
+	return s(
+		context,
+		fmt("{}{}: {} {}{}{}", {
+			f(function ()
+				return vim.bo.commentstring:match("^(.-)%%s") or ""
+			end),
+			c(
+				1,
+				vim.tbl_map(function (alias)
+					return i(nil, alias)
+				end, aliases)
+			),
+			i(3),
+			c(2, {
+				fmt("<{}>", i(1, username)),
+				fmt("<{}{}>", { i(1, os.date("%d-%m-%y")), i(2, ", " .. username) }),
+				fmt("<{}>", i(1, os.date("%d-%m-%y"))),
+				t("")
+			}),
+			i(0),
+			f(function ()
+				return vim.bo.commentstring:match("%%s(.*)$") or ""
+			end)
+		})
+	)
 end
 
 local base_specs = {

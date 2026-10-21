@@ -5,7 +5,10 @@ local pos = require("math-snippets.position")
 local reference_prefixes = { a = "auto", r = "", z = "zc" }
 
 local text_opts = { condition = tex.in_text, show_condition = tex.in_text }
-local line_begin_opts = { condition = expand_line_begin * tex.in_text, show_condition = pos.show_line_begin * tex.in_text }
+local line_begin_opts = {
+	condition = expand_line_begin * tex.in_text,
+	show_condition = pos.show_line_begin * tex.in_text
+}
 
 local function phrase_snippet(trig, body)
 	return s({ trig = trig, desc = trig }, t(body), text_opts)
@@ -16,7 +19,8 @@ local function rational_phrase_snippet(trig, name)
 		f(function (_, snip)
 			return "\\(\\mathbb{" .. snip.captures[1]:upper() .. "}\\)-" .. name
 		end, {})
-	}, text_opts)
+	}, text_opts
+	)
 end
 
 local snips = {
@@ -80,11 +84,7 @@ local autosnips = {
 	rational_phrase_snippet("([qr])d", "divisor")
 }
 
-local phrase_specs = {
-	klt = "Kawamata log terminal",
-	resp = "resp.\\ ",
-	ses = "short exact sequence"
-}
+local phrase_specs = { klt = "Kawamata log terminal", resp = "resp.\\ ", ses = "short exact sequence" }
 
 local auto_phrase_specs = {
 	bqf = "base point free",

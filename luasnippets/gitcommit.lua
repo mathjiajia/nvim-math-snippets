@@ -6,10 +6,13 @@ local opts = { condition = expand_line_begin, show_condition = pos.show_line_beg
 local snips = {}
 
 for _, trig in ipairs(commit_specs) do
-	table.insert(snips, s(
-		{ trig = trig, name = trig, desc = "git commit " .. trig },
-		fmta([[<>(<>): <>]], { t(trig), i(1, "scope"), i(0, "title") }), opts
-	))
+	table.insert(
+		snips,
+		s(
+			{ trig = trig, name = trig, desc = "git commit " .. trig },
+			fmta([[<>(<>): <>]], { t(trig), i(1, "scope"), i(0, "title") }), opts
+		)
+	)
 end
 
 return snips

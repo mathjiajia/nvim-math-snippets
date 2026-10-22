@@ -1,14 +1,15 @@
-local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
 local tex = require("math-snippets.latex")
 local conditions = require("math-snippets.conditions")
-
-local reference_prefixes = { a = "auto", r = "", z = "zc" }
+local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
 
 local text_opts = { condition = tex.in_text, show_condition = tex.in_text }
+
 local line_begin_opts = {
 	condition = expand_line_begin * tex.in_text,
 	show_condition = conditions.show_line_begin * tex.in_text
 }
+
+local reference_prefixes = { a = "auto", r = "", z = "zc" }
 
 local function phrase_snippet(trig, body)
 	return s({ trig = trig, desc = trig }, t(body), text_opts)
@@ -24,10 +25,22 @@ local function rational_phrase_snippet(trig, name)
 end
 
 local snips = {
+	-- Text styles and citations.
+	s({ trig = "bf", name = "bold", desc = "Insert bold text." }, { t("\\textbf{"), i(1), t("}") }, text_opts),
+	s({ trig = "it", name = "italic", desc = "Insert italic text." }, { t("\\textit{"), i(1), t("}") }, text_opts),
+	s({ trig = "em", name = "emphasize", desc = "Insert emphasized text." }, { t("\\emph{"), i(1), t("}") }, text_opts),
 	s({ trig = "cf", name = "cross reference" }, fmta([[\cite[<>]{<>}<>]], { i(1), i(2), i(0) }), text_opts)
 }
 
 local autosnips = {
+	-- Paragraphs.
+	s({
+		trig = "ni",
+		name = "non-indented paragraph",
+		desc = "Insert non-indented paragraph."
+	}, { t({ "\\noindent", "" }) }, { condition = tex.in_text }),
+
+	-- Labels and references.
 	s({
 		trig = "alab",
 		name = "label",
@@ -65,6 +78,7 @@ local autosnips = {
 		}
 	}),
 
+	-- Mathematical prose.
 	s({
 		trig = "Tfae",
 		name = "The following are equivalent"

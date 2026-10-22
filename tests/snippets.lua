@@ -44,9 +44,9 @@ for _, path in ipairs(vim.fn.glob("luasnippets/**/*.lua", false, true)) do
 	end)
 end
 
-local function find(file, property, value)
+local function find(file, property, value, priority)
 	for _, snippet in ipairs(assert(loaded["luasnippets/" .. file .. ".lua"], "file did not load: " .. file)) do
-		if snippet[property] == value then
+		if snippet[property] == value and (not priority or snippet.priority == priority) then
 			return snippet
 		end
 	end
@@ -194,7 +194,7 @@ local delimiters = {
 for key, pair in pairs(delimiters) do
 	for _, prefix in ipairs({ "bk", "lr" }) do
 		check(prefix .. key, function ()
-			local snippet = find("tex/delimiters", "name", prefix == "bk" and "brackets" or "left right")
+			local snippet = find("tex/expressions", "name", prefix == "bk" and "brackets" or "left right")
 			local left = (prefix == "lr" and "\\left" or "") .. pair[1]
 			local right = (prefix == "lr" and "\\right" or "") .. pair[2]
 			equal(
@@ -239,7 +239,7 @@ for _, case in ipairs({
 	{ "surround i+1", "i+1", ";", " \t " }
 }) do
 	check(case[1], function ()
-		local snippet = find("tex/misc", "name", case[1])
+		local snippet = find("tex/inline_math", "name", case[1])
 		local source = "words " .. case[2] .. case[3] .. case[4]
 		local expected = "words \\(" .. case[2] .. "\\)" .. case[3] .. case[4]
 		equal(case[1] .. " retains trailing whitespace", expand_trigger(snippet, source), expected)
@@ -254,7 +254,7 @@ check("inline math exit callback", function ()
 				return autocmd.desc == "Auto Add a Space after Inline Math"
 			end, vim.api.nvim_get_autocmds({ event = "InsertCharPre", buf = buffer }))
 		end
-		ls.snip_expand(find("tex/misc", "trigger", "mk"))
+		ls.snip_expand(find("tex/inline_math", "trigger", "mk"))
 		equal("no spacing callback before leaving math", #callbacks(), 0)
 		ls.jump(1)
 		local pending = callbacks()
@@ -274,7 +274,7 @@ check("inline math next character spacing", function ()
 				once = true,
 				callback = function () vim.v.char = character end
 			})
-			ls.snip_expand(find("tex/misc", "trigger", "mk"))
+			ls.snip_expand(find("tex/inline_math", "trigger", "mk"))
 			ls.jump(1)
 			vim.api.nvim_exec_autocmds("InsertCharPre", { buf = 0 })
 			local expected = (character == "a" or character == "Z") and " " .. character or character
@@ -290,7 +290,7 @@ check("automatic inline math preserves pattern matches", function ()
 		"plain words", ("prefix "):rep(512) .. "x", "words " .. ("1"):rep(1024) .. ("a"):rep(1024)
 	}
 	for _, name in ipairs({ "single-letter variable", "surround word starting with number", "surround i+1" }) do
-		local snippet = find("tex/misc", "name", name)
+		local snippet = find("tex/inline_math", "name", name)
 		local reference = ls.snippet(
 			{ trig = snippet.trigger, trigEngine = "pattern", wordTrig = false },
 			ls.text_node(""),
@@ -316,7 +316,7 @@ check("automatic inline math preserves pattern matches", function ()
 end)
 
 check("Beamer document class detection", function ()
-	local frame = find("tex/environments", "trigger", "bfr")
+	local frame = find("tex/structure", "trigger", "bfr")
 	for _, case in ipairs({
 		{ "\\documentclass{beamer}", true },
 		{ "  \\documentclass{beamer}", true },
@@ -461,7 +461,7 @@ for _, case in ipairs({
 	{ "cohomology-a", "HiX", "H^{i}(X,)" }
 }) do
 	check(case[1], function ()
-		local snippet = find("tex/operators", "name", case[1])
+		local snippet = find("tex/expressions", "name", case[1])
 		equal(
 			case[1] .. " expansion", expand_trigger(snippet, "$ " .. case[2] .. "$", #case[2] + 2), "$ " .. case[3] .. "$"
 		)
@@ -470,7 +470,7 @@ end
 
 for _, operator in ipairs({ "sin", "ker", "Quot" }) do
 	check(operator .. " backslash", function ()
-		local snippet = find("tex/operators", "name", operator)
+		local snippet = find("tex/symbols", "name", operator)
 		equal(
 			operator .. " expansion", expand_trigger(snippet, "$ " .. operator .. "$", #operator + 2),
 			"$ \\" .. operator .. "$"
@@ -482,10 +482,10 @@ for _, operator in ipairs({ "sin", "ker", "Quot" }) do
 	end)
 end
 
-check("command trigger boundaries and captures", function ()
+check("command trigger boundaries", function ()
 	for _, case in ipairs({
-		{ "tex/operators", "sin", true },
-		{ "tex/symbols", "sq", true },
+		{ "tex/symbols", "sin", true },
+		{ "tex/expressions", "sq", true },
 		{ "tex/symbols", "op", false },
 		{ "tex/symbols", "nabl", false }
 	}) do
@@ -498,8 +498,8 @@ check("command trigger boundaries and captures", function ()
 				local match = snippet:matches(line)
 				local blocked = case[3] and (prefix == "x" or prefix == "_" or prefix == "7")
 				equal(
-					case[2] .. " after " .. (prefix:sub(1, 12)), match and { match.trigger, match.captures },
-					not blocked and { case[2], { case[2] } } or nil
+					case[2] .. " after " .. (prefix:sub(1, 12)), match and match.trigger,
+					not blocked and case[2] or nil
 				)
 			end, { 2, #line }
 			)
@@ -512,9 +512,9 @@ check("command trigger boundaries and captures", function ()
 		end
 	end
 	for _, case in ipairs({
-		{ "tex/operators", "sin", "αsin", "α\\sin" },
+		{ "tex/symbols", "sin", "αsin", "α\\sin" },
 		{ "tex/symbols", "op", "xop", "x\\oplus" },
-		{ "tex/symbols", "sq", "中sq", "中\\sqrt{}" }
+		{ "tex/expressions", "sq", "中sq", "中\\sqrt{}" }
 	}) do
 		equal(
 			case[2] .. " preserves preceding text",
@@ -525,13 +525,13 @@ end)
 
 check("bounded pattern matches and captures", function ()
 	for _, case in ipairs({
-		{ "tex/operators", "cohomology-d", "H_2X", { "H", "2", "X" } },
-		{ "tex/operators", "cohomology-a", "HiX", { "H", "i", "X" } },
-		{ "tex/operators", "x[n+1]", "xp2", { "x", "2" } },
-		{ "tex/phrases", "Cartier", "qc", { "q" }, "text" },
-		{ "tex/phrases", "divisor", "rd", { "r" }, "text" },
-		{ "tex/phrases", "(arz)?ref", "zref", { "z" }, "text" },
-		{ "tex/phrases", "without loss of generality", "Wlog", { "W" }, "line" },
+		{ "tex/expressions", "cohomology-d", "H_2X", { "H", "2", "X" } },
+		{ "tex/expressions", "cohomology-a", "HiX", { "H", "i", "X" } },
+		{ "tex/symbols", "x[n+1]", "xp2", { "x", "2" } },
+		{ "tex/text", "Cartier", "qc", { "q" }, "text" },
+		{ "tex/text", "divisor", "rd", { "r" }, "text" },
+		{ "tex/text", "(arz)?ref", "zref", { "z" }, "text" },
+		{ "tex/text", "without loss of generality", "Wlog", { "W" }, "line" },
 		{ "tex/symbols", "\\xi_{i}", "\\Xii", { "X" } },
 		{ "tex/symbols", "\\pi_{i}", "\\pii", { "p" } },
 		{ "tex/symbols", "\\phi_{i}", "\\Phii", { "P" } },
@@ -545,8 +545,8 @@ check("bounded pattern matches and captures", function ()
 		{ "tex/symbols", "linearly equivalent", "qle", { "q" } },
 		{ "tex/symbols", "alph i", "xii", { "x" } },
 		{ "tex/symbols", "alph j", "yjj", { "y" } },
-		{ "tex/delimiters", "brackets", "bkp", { "p" } },
-		{ "tex/delimiters", "left right", "lrv", { "v" } }
+		{ "tex/expressions", "brackets", "bkp", { "p" } },
+		{ "tex/expressions", "left right", "lrv", { "v" } }
 	}) do
 		local snippet = find(case[1], "name", case[2])
 		local prefixes = case[5] == "line" and { "", (" \t"):rep(1024) }
@@ -565,14 +565,14 @@ check("bounded pattern matches and captures", function ()
 			)
 		end
 	end
-	local wlog = find("tex/phrases", "name", "without loss of generality")
+	local wlog = find("tex/text", "name", "without loss of generality")
 	with_buffer({ "preceding text Wlog" }, function ()
 		equal("bounded matching preserves full line for conditions", wlog:matches("preceding text Wlog"), nil)
 	end)
 	equal(
 		"bounded matching preserves word boundaries",
 		with_buffer({ "$ xHiX$" }, function ()
-			return find("tex/operators", "name", "cohomology-a"):matches("$ xHiX")
+			return find("tex/expressions", "name", "cohomology-a"):matches("$ xHiX")
 		end, 6
 		),
 		nil
@@ -593,9 +593,9 @@ for _, case in ipairs({ { "rmap", "dashrightarrow" }, { "emb", "hookrightarrow" 
 	end)
 end
 
-for _, case in ipairs({ { "mbb", "mathbb" }, { "hat", "widehat" }, { "bar", "overline" } }) do
+for _, case in ipairs({ { "mbb", "mathbb" }, { "hat", "widehat", 500 }, { "bar", "overline", 500 } }) do
 	check(case[1] .. " postfix", function ()
-		local snippet = find("tex/style", "trigger", case[1])
+		local snippet = find("tex/expressions", "trigger", case[1], case[3])
 		equal(
 			case[1] .. " wraps preceding text", expand_trigger(snippet, "$ x" .. case[1] .. "$", #case[1] + 3),
 			"$ \\" .. case[2] .. "{x}$"
@@ -635,10 +635,10 @@ end
 
 check("text phrases", function ()
 	for _, case in ipairs({ { "([qr])c", "qc", "Q", "Cartier" }, { "([qr])d", "rd", "R", "divisor" } }) do
-		local snippet = find("tex/phrases", "trigger", case[1])
+		local snippet = find("tex/text", "trigger", case[1])
 		equal(case[2] .. " phrase", expand_trigger(snippet, case[2]), "\\(\\mathbb{" .. case[3] .. "}\\)-" .. case[4])
 	end
-	local cite = find("tex/phrases", "trigger", "cf")
+	local cite = find("tex/text", "trigger", "cf")
 	equal("citation in text", expand_trigger(cite, "cf"), "\\cite[]{}")
 	with_buffer({ "$ cf$" }, function ()
 		equal("citation disabled in math", cite:matches("$ cf"), nil)
@@ -647,7 +647,7 @@ check("text phrases", function ()
 end)
 
 check("optional command argument", function ()
-	local sqrt = find("tex/symbols", "name", "sqrt")
+	local sqrt = find("tex/expressions", "name", "sqrt")
 	with_buffer({ "" }, function ()
 		ls.snip_expand(sqrt)
 		equal("sqrt default", buffer_text(), "\\sqrt{}")
@@ -657,8 +657,8 @@ check("optional command argument", function ()
 end)
 
 check("matrix and cases", function ()
-	local matrix = find("tex/environments", "trigger", "([bBpvV])mat_(%d+)x_(%d+)([ar])")
-	local cases = find("tex/environments", "trigger", "(%d?)cases")
+	local matrix = find("tex/structure", "trigger", "([bBpvV])mat_(%d+)x_(%d+)([ar])")
+	local cases = find("tex/structure", "trigger", "(%d?)cases")
 	for _, case in ipairs({
 		{ matrix, "bmat_2x_2r", "\\begin{bmatrix}\n\t &  \\\\\n\t & \n\\end{bmatrix}" },
 		{ cases, "cases", "\\begin{cases}\n\t &  \\\\\n\t & \n\\end{cases}" },
@@ -766,24 +766,21 @@ check("TODO dates remain fresh and editable", function ()
 end)
 
 check("visual selections", function ()
-	local get_visual = require("math-snippets.util").get_visual
+	local snippet = find("tex/expressions", "trigger", "tt")
 	for _, case in ipairs({
 		{ "no selection", {}, "" },
 		{ "empty selection", { LS_SELECT_RAW = {} }, "" },
 		{ "selected text", { LS_SELECT_RAW = { "x + y" } }, "x + y" },
 		{ "multiline selection", { LS_SELECT_RAW = { "x", "y" } }, "x\ny" }
 	}) do
-		local snippet = ls.snippet("visual", {
-			ls.dynamic_node(1, function ()
-				return get_visual(nil, { snippet = { env = case[2] } })
-			end)
-		})
-		equal(case[1], expand(snippet), case[3])
+		equal(
+			case[1], expand(snippet, { expand_params = { env_override = case[2] } }), "\\text{" .. case[3] .. "}"
+		)
 	end
 end)
 
 check("optional Blink completion", function ()
-	local eqref = find("tex/phrases", "trigger", "eqref")
+	local eqref = find("tex/text", "trigger", "eqref")
 	local previous_loaded, previous_preload = package.loaded["blink.cmp"], package.preload["blink.cmp"]
 	local ok, err = pcall(function ()
 		package.loaded["blink.cmp"] = nil

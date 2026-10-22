@@ -134,11 +134,13 @@ local function expect_match(version, line, name, trigger, captures)
 	assert(snippet and params, version.label .. " did not match " .. name)
 	assert(snippet.name == name, ("%s: expected %s, got %s"):format(version.label, name, snippet.name))
 	assert(params.trigger == trigger, version.label .. " returned an unexpected matched trigger")
-	assert(
-		vim.deep_equal(params.captures, captures),
-		version.label .. " returned unexpected captures: "
-			.. vim.inspect(params.captures)
-	)
+	if captures then
+		assert(
+			vim.deep_equal(params.captures, captures),
+			version.label .. " returned unexpected captures: "
+				.. vim.inspect(params.captures)
+		)
+	end
 end
 
 local function table_header(title)
@@ -219,7 +221,7 @@ end
 
 table_header("Successful math triggers: cursor movement + collection matching and context classification (valid tree)")
 for _, case in ipairs({
-	{ trigger = "sin", name = "sin", captures = { "sin" } },
+	{ trigger = "sin", name = "sin" },
 	{ trigger = "x7", name = "auto subscript 1", captures = { "x", "7" } },
 	{ trigger = "H_2X", name = "cohomology-d", captures = { "H", "2", "X" } }
 }) do
@@ -279,7 +281,7 @@ benchmark("sin after edit", function (version)
 			for _ = 1, 2 do
 				edit()
 				assert(not parser:is_valid(false, range), "The edit did not invalidate the target parse range")
-				expect_match(version, line:sub(1, #line - 2), "sin", "sin", { "sin" })
+				expect_match(version, line:sub(1, #line - 2), "sin", "sin")
 				assert(parser:is_valid(false, range), version.label .. " did not reparse the edited context")
 			end
 		end,

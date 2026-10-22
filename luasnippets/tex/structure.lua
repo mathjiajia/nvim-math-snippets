@@ -2,23 +2,66 @@ local tex = require("math-snippets.latex")
 local conditions = require("math-snippets.conditions")
 local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
 
-local beamer_opts = {
-	condition = expand_line_begin * tex.in_beamer * tex.in_text,
-	show_condition = conditions.show_line_begin * tex.in_beamer * tex.in_text
-}
-
 local begin_opts = { condition = expand_line_begin, show_condition = conditions.show_line_begin }
+
+local env_opts = {
+	condition = expand_line_begin * tex.in_text,
+	show_condition = conditions.show_line_begin * tex.in_text
+}
 
 local bullet_opts = {
 	condition = expand_line_begin * tex.in_bullets,
 	show_condition = conditions.show_line_begin * tex.in_bullets
 }
 
-local env_opts = { condition = expand_line_begin * tex.in_text, show_condition = conditions.show_line_begin * tex.in_text }
+local beamer_opts = {
+	condition = expand_line_begin * tex.in_beamer * tex.in_text,
+	show_condition = conditions.show_line_begin * tex.in_beamer * tex.in_text
+}
 
-local math_opts = { condition = expand_line_begin * tex.in_math, show_condition = conditions.show_line_begin * tex.in_math }
+local math_line_opts = {
+	condition = expand_line_begin * tex.in_math,
+	show_condition = conditions.show_line_begin * tex.in_math
+}
 
--- Restore keys keep cell contents when the matrix is regenerated.
+local function env_snippet(trig, env)
+	local context = { trig = trig, name = trig, desc = trig .. " Environment" }
+	return s(context, fmta([[
+			\begin{<>}
+				<>
+			\end{<>}
+			]], { t(env), i(0), t(env) }), env_opts)
+end
+
+local function labeled_env_snippet(trig, env)
+	local context = { trig = trig, name = trig, desc = "Labeled " .. trig .. " Environment" }
+	return s(
+		context,
+		fmta(
+			[[
+			\begin{<>}[<>]\zlabel{<>:<>}
+				<>
+			\end{<>}
+			]], { t(env), i(1), t(trig), l(l._1:gsub("[^%w]+", "_"):gsub("_$", ""):lower(), 1), i(0), t(env) }
+		), env_opts
+	)
+end
+
+local function sec_snippet(trig, name)
+	local context = { trig = trig, name = name, desc = name }
+	return s(
+		context,
+		fmta(
+			[[
+			\<>{<>}\zlabel{<>:<>}
+
+			<>
+			]], { t(name), i(1), t(trig), l(l._1:gsub("[^%w]+", "_"):gsub("_*$", ""):lower(), 1), i(0) }
+		), env_opts
+	)
+end
+
+-- Restore keys keep cell contents when a matrix or cases block is regenerated.
 local function generate_matrix(_, snip)
 	local rows = tonumber(snip.captures[2])
 	local cols = tonumber(snip.captures[3])
@@ -58,43 +101,6 @@ local function generate_cases(_, snip)
 	return sn(nil, nodes)
 end
 
-local function env_snippet(trig, env)
-	local context = { trig = trig, name = trig, desc = trig .. " Environment" }
-	return s(context, fmta([[
-			\begin{<>}
-				<>
-			\end{<>}
-			]], { t(env), i(0), t(env) }), env_opts)
-end
-
-local function labeled_env_snippet(trig, env)
-	local context = { trig = trig, name = trig, desc = "Labeled " .. trig .. " Environment" }
-	return s(
-		context,
-		fmta(
-			[[
-			\begin{<>}[<>]\zlabel{<>:<>}
-				<>
-			\end{<>}
-			]], { t(env), i(1), t(trig), l(l._1:gsub("[^%w]+", "_"):gsub("_$", ""):lower(), 1), i(0), t(env) }
-		), env_opts
-	)
-end
-
-local function sec_snippet(trig, name)
-	local context = { trig = trig, name = name, desc = name }
-	return s(
-		context,
-		fmta(
-			[[
-			\<>{<>}\zlabel{<>:<>}
-
-			<>
-			]], { t(name), i(1), t(trig), l(l._1:gsub("[^%w]+", "_"):gsub("_*$", ""):lower(), 1), i(0) }
-		), env_opts
-	)
-end
-
 local function matrix_name(_, snip)
 	return snip.captures[1] .. "matrix"
 end
@@ -121,30 +127,11 @@ local snips = {
 			end),
 			d(1, generate_matrix),
 			f(matrix_name)
-		}), math_opts)
+		}), math_line_opts)
 }
 
 local autosnips = {
-	-- Beamer
-	s(
-		{ trig = "bfr", name = "Beamer Frame Environment" },
-		fmta([[
-			\begin{frame}
-				\frametitle{<>}
-				<>
-			\end{frame}
-			]], { i(1, "frame title"), i(0) }), beamer_opts
-	),
-	s(
-		{ trig = "bbl", name = "Beamer Block Environment" },
-		fmta([[
-			\begin{block}{<>}
-				<>
-			\end{block}
-			]], { i(1), i(0) }), beamer_opts
-	),
-
-	-- Environments
+	-- Generic environments and proofs.
 	s({
 		trig = "beg",
 		name = "begin/end",
@@ -154,6 +141,7 @@ local autosnips = {
 				<>
 			\end{<>}
 			]], { i(1), i(0), rep(1) }), begin_opts),
+
 	s(
 		{ trig = "lprf", name = "Titled Proof", desc = "Create a titled proof environment." },
 		fmta([[
@@ -163,26 +151,7 @@ local autosnips = {
 			]], { i(1), i(0) }), env_opts
 	),
 
-	s(
-		{ trig = "(%d?)cases", name = "cases", desc = "cases", trigEngine = "pattern", hidden = true },
-		fmta([[
-			\begin{cases}
-				<>
-			\end{cases}
-			]], { d(1, generate_cases) }), math_opts
-	),
-
-	s(
-		{ trig = "tkz", name = "tikzcd Environment", desc = "Create a tikzcd environment." },
-		fmta([[
-			\[
-				\begin{tikzcd}
-					<> \\
-				\end{tikzcd}
-			\]
-			<>
-			]], { i(1), i(0) }), env_opts
-	),
+	-- Lists; enumerate label choices require enumitem.
 	s(
 		{ trig = "bit", name = "itemize", desc = "bullet points (itemize)" },
 		fmta(
@@ -194,7 +163,6 @@ local autosnips = {
 		), env_opts
 	),
 
-	-- requires enumitem
 	s(
 		{ trig = "ben", name = "enumerate", desc = "numbered list (enumerate)" },
 		fmta([[
@@ -211,13 +179,60 @@ local autosnips = {
 		env_opts
 	),
 
-	-- generate new bullet points
 	s({ trig = "--", hidden = true }, { t("\\item ") }, bullet_opts),
+
 	s({
 		trig = "!-",
 		name = "bullet point",
 		desc = "bullet point with custom text"
 	}, fmta([[\item [<>]<>]], { i(1), i(0) }), bullet_opts),
+
+	-- Beamer presentations.
+	s(
+		{ trig = "bfr", name = "Beamer Frame Environment" },
+		fmta([[
+			\begin{frame}
+				\frametitle{<>}
+				<>
+			\end{frame}
+			]], { i(1, "frame title"), i(0) }), beamer_opts
+	),
+
+	s(
+		{ trig = "bbl", name = "Beamer Block Environment" },
+		fmta([[
+			\begin{block}{<>}
+				<>
+			\end{block}
+			]], { i(1), i(0) }), beamer_opts
+	),
+
+	-- Display math and equations.
+	s({
+		trig = "dm",
+		name = "display math",
+		desc = "Insert display Math Environment."
+	}, fmt([[
+		\[
+			{}
+		\]
+		{}
+		]], { i(1), i(0) }), { condition = tex.in_text }),
+
+	s({ trig = "bseq", name = "bseq", desc = "bseq Environment" }, fmta([[
+			\begin{<>}
+				<>
+			\end{<>}
+			]], { t("equation*"), i(0), t("equation*") }), env_opts),
+
+	s({
+		trig = "beq",
+		desc = "labeled equation"
+	}, fmta([[
+			\begin{equation}\zlabel{eq:<>}
+				<>
+			\end{equation}
+			]], { i(2), i(1) }), begin_opts),
 
 	s({
 		trig = "bal",
@@ -240,14 +255,55 @@ local autosnips = {
 			]], { i(1), i(2), i(3), i(4), rep(1), rep(4), i(0) }
 	), begin_opts),
 
-	s({
-		trig = "beq",
-		desc = "labeled equation"
-	}, fmta([[
-			\begin{equation}\zlabel{eq:<>}
+	-- Cases, column vectors, and alignment aids.
+	s(
+		{ trig = "(%d?)cases", name = "cases", desc = "cases", trigEngine = "pattern", hidden = true },
+		fmta([[
+			\begin{cases}
 				<>
-			\end{equation}
-			]], { i(2), i(1) }), begin_opts)
+			\end{cases}
+			]], { d(1, generate_cases) }), math_line_opts
+	),
+
+	s({
+		trig = "cvec",
+		name = "column vector",
+		hidden = true,
+		condition = expand_line_begin * tex.in_math
+	}, fmta(
+		[[
+		\begin{pmatrix}
+			<>_<> \\
+			\vdots \\
+			<>_<>
+		\end{pmatrix}
+		]], { i(1, "x"), i(2, "1"), rep(1), i(3, "n") }
+	)),
+
+	s({
+		trig = "pha",
+		name = "phantom",
+		desc = "create a space",
+		hidden = true,
+		condition = expand_line_begin * tex.in_align
+	}, { t("&\\phantom{\\;=\\;} ") }),
+
+	s(
+		{ trig = "==", name = "align equals", wordTrig = false, hidden = true }, { t("& = ") }, { condition = tex.in_align }
+	),
+
+	-- Commutative diagrams.
+	s(
+		{ trig = "tkz", name = "tikzcd Environment", desc = "Create a tikzcd environment." },
+		fmta([[
+			\[
+				\begin{tikzcd}
+					<> \\
+				\end{tikzcd}
+			\]
+			<>
+			]], { i(1), i(0) }), env_opts
+	)
 }
 
 local sec_specs = { cha = "chapter", sec = "section", ssec = "section*", sub = "subsection", ssub = "subsection*" }
@@ -257,7 +313,6 @@ for trig, command in pairs(sec_specs) do
 end
 
 local env_specs = {
-	bseq = "equation*",
 	proof = "proof",
 	conj = "conjecture",
 	cor = "corollary",

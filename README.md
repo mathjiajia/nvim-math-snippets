@@ -28,6 +28,27 @@ Visual-selection snippets use LuaSnip's `LS_SELECT_RAW`. Configure
 `cut_selection_keys` in LuaSnip to choose the visual-mode mapping that stores the
 selection for the next snippet.
 
+## TeX snippet organization
+
+The files in `luasnippets/tex/` are grouped by use:
+
+| File | Contents |
+| --- | --- |
+| [structure.lua](luasnippets/tex/structure.lua) | Headings, theorem/proof environments, lists, Beamer, equations, matrices, cases, and diagram blocks |
+| [text.lua](luasnippets/tex/text.lua) | Prose abbreviations, text styles, paragraphs, labels, citations, and references |
+| [symbols.lua](luasnippets/tex/symbols.lua) | Greek letters, relations, named operators, arrows, subscripts, and superscripts |
+| [expressions.lua](luasnippets/tex/expressions.lua) | Fractions, limits, sums/products, sequences, cohomology, delimiters, and commands around selections or preceding expressions |
+| [inline_math.lua](luasnippets/tex/inline_math.lua) | Inline math, automatic wrapping of variables, and spacing after math |
+
+The grouping also keeps shared imports together: `expressions.lua` owns the
+visual-selection snippets, while `inline_math.lua` owns the whitespace trigger
+engine and spacing callbacks. Imports are grouped at each file's top; optional
+Blink completion is loaded only when entering a reference.
+
+LuaSnip loads these files directly. Shared context detection lives in
+`lua/math-snippets/`; the visual-selection helper is local to `expressions.lua`.
+Command guards check for an existing backslash before checking math context.
+
 ## General conditions
 
 `require("math-snippets.conditions")` provides conditions shared by filetypes:

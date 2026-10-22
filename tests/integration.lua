@@ -125,15 +125,7 @@ local function run()
 			update_events = { "TextChanged", "TextChangedI" },
 			delete_check_events = "TextChanged"
 		})
-		local env = setmetatable({}, {
-			__index = function (_, key) return ls.get_snip_env()[key] or _G[key] end
-		})
-		for _, file in ipairs({ "misc", "symbols" }) do
-			local chunk = assert(loadfile("luasnippets/tex/" .. file .. ".lua"))
-			setfenv(chunk, env)
-			local _, autosnippets = chunk()
-			ls.add_snippets("tex", autosnippets, { type = "autosnippets" })
-		end
+		require("luasnip.loaders.from_lua").load({ paths = { vim.fn.getcwd() .. "/luasnippets" } })
 
 		InputTests = { events = {}, counts = {} }
 		api.nvim_create_autocmd({ "InsertEnter", "InsertLeave", "InsertCharPre", "CursorMovedI", "TextChangedI", "BufLeave" }, {

@@ -1,8 +1,7 @@
 local tex = require("math-snippets.latex")
-local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
 local pattern_engine = require("luasnip.nodes.util.trig_engines").pattern
 
-local opts = { condition = tex.in_text }
+local text_opts = { condition = tex.in_text }
 local spacing_group = vim.api.nvim_create_augroup("math-snippets.inline-space", { clear = true })
 
 local function appended_space_after_insert()
@@ -46,48 +45,30 @@ local function automatic_inline_math(trig, name)
 		wordTrig = false,
 		trigEngine = whitespace_pattern,
 		hidden = true
-	}, f(surround_with_inline_math), opts)
+	}, f(surround_with_inline_math), text_opts)
 end
 
-return nil, {
-		automatic_inline_math("(%s)([b-zB-HJ-Z0-9])([,;.%-%)]?)(%s+)", "single-letter variable"),
-		automatic_inline_math("(%s)([0-9]+[a-zA-Z]+)([,;.%)]?)(%s+)", "surround word starting with number"),
-		automatic_inline_math("(%s)(%w[-_+=><]%w)([,;.%)]?)(%s+)", "surround i+1"),
-		s({
-			trig = "mk",
-			name = "inline math",
-			desc = "Insert inline Math Environment.",
-			hidden = true,
-			condition = tex.in_text
-		},
-			fmt([[\({}\){}]], { i(1), i(0) }), {
-				callbacks = {
-					[-1] = {
-						[events.leave] = appended_space_after_insert
-					}
-				}
-			}),
-		s({
-			trig = "dm",
-			name = "display math",
-			desc = "Insert display Math Environment."
-		}, fmt([[
-			\[
-				{}
-			\]
-			{}
-			]], { i(1), i(0) }), opts),
-		s({
-			trig = "pha",
-			name = "phantom",
-			desc = "create a space",
-			hidden = true,
-			condition = expand_line_begin * tex.in_align
-		}, { t("&\\phantom{\\;=\\;} ") }),
+local autosnips = {
+	automatic_inline_math("(%s)([b-zB-HJ-Z0-9])([,;.%-%)]?)(%s+)", "single-letter variable"),
 
-		s({
-			trig = "ni",
-			name = "non-indented paragraph",
-			desc = "Insert non-indented paragraph."
-		}, { t({ "\\noindent", "" }) }, opts)
-	}
+	automatic_inline_math("(%s)([0-9]+[a-zA-Z]+)([,;.%)]?)(%s+)", "surround word starting with number"),
+
+	automatic_inline_math("(%s)(%w[-_+=><]%w)([,;.%)]?)(%s+)", "surround i+1"),
+
+	s({
+		trig = "mk",
+		name = "inline math",
+		desc = "Insert inline Math Environment.",
+		hidden = true,
+		condition = tex.in_text
+	},
+		fmt([[\({}\){}]], { i(1), i(0) }), {
+			callbacks = {
+				[-1] = {
+					[events.leave] = appended_space_after_insert
+				}
+			}
+		})
+}
+
+return nil, autosnips

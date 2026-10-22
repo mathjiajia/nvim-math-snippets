@@ -16,4 +16,17 @@ local function in_comments()
 	return false
 end
 
-return { in_comments = mkcond(in_comments) }
+--- Check if the cursor is in the first three lines.
+---@return boolean
+local function on_top()
+	return api.nvim_win_get_cursor(0)[1] <= 3
+end
+
+--- Show line-start snippets while typing the first word, allowing indentation.
+---@param line_to_cursor string
+---@return boolean
+local function show_line_begin(line_to_cursor)
+	return line_to_cursor:match("^%s*%S*$") ~= nil
+end
+
+return { in_comments = mkcond(in_comments), on_top = mkcond(on_top), show_line_begin = mkcond(show_line_begin) }

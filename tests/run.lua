@@ -73,7 +73,9 @@ assert(not options.environment or #options.runtimepaths == 0, "Use either --envi
 
 local languages = { "latex", "lua", "markdown", "markdown_inline" }
 local required_queries = {
-	latex = { "highlights", "injections" }, markdown = { "injections" }, markdown_inline = { "injections" }
+	latex = { "highlights", "injections" },
+	markdown = { "injections" },
+	markdown_inline = { "injections" }
 }
 
 local function inventory(executable)
@@ -85,8 +87,8 @@ local function inventory(executable)
 	end
 	fingerprint(executable)
 	local patterns = {
-		"lua/luasnip.lua", "lua/luasnip/**/*", "lua/luasnip-jsregexp.*",
-		"lua/jsregexp.lua", "lua/jsregexp/**/*", "lua/vim/treesitter.lua", "lua/vim/treesitter/**/*"
+		"lua/luasnip.lua", "lua/luasnip/**/*", "lua/luasnip-jsregexp.*", "lua/jsregexp.lua", "lua/jsregexp/**/*",
+		"lua/vim/treesitter.lua", "lua/vim/treesitter/**/*"
 	}
 	for _, language in ipairs(languages) do
 		patterns[#patterns + 1] = "parser/" .. language .. ".*"
@@ -161,24 +163,30 @@ local function discover()
 		runtimepaths = vim.api.nvim_list_runtime_paths(),
 		package_path = package.path,
 		package_cpath = package.cpath,
-		parsers = {}, queries = {}
+		parsers = {},
+		queries = {}
 	}
 	local luasnip = assert(vim.api.nvim_get_runtime_file("lua/luasnip/init.lua", false)[1], "LuaSnip is missing")
 	local source_root = vim.fn.fnamemodify(vim.fn.resolve(luasnip), ":h:h:h")
 	environment.luasnip = source_root
 	environment.luasnip_version = source_root:match("luasnip%-(%d+%.%d+%.%d+)")
 	if vim.fn.isdirectory(source_root .. "/.git") == 1 or vim.fn.filereadable(source_root .. "/.git") == 1 then
-		local revision = vim.system({ "git", "-C", source_root, "describe", "--tags", "--always", "--dirty" }, { text = true }):wait()
+		local revision = vim
+			.system({ "git", "-C", source_root, "describe", "--tags", "--always", "--dirty" }, { text = true })
+			:wait()
 		if revision.code == 0 then
 			environment.luasnip_version = vim.trim(revision.stdout)
 		end
 	end
 	for _, language in ipairs(languages) do
-		local path = assert(vim.api.nvim_get_runtime_file("parser/" .. language .. ".*", false)[1], "Missing parser: " .. language)
+		local path = assert(
+			vim.api.nvim_get_runtime_file("parser/" .. language .. ".*", false)[1], "Missing parser: " .. language
+		)
 		local loaded, load_error = vim.treesitter.language.add(language)
 		assert(loaded, "Cannot load " .. language .. " parser: " .. tostring(load_error))
 		environment.parsers[language] = {
-			path = vim.fn.resolve(path), abi = vim.treesitter.language.inspect(language).abi_version,
+			path = vim.fn.resolve(path),
+			abi = vim.treesitter.language.inspect(language).abi_version,
 			revision = vim.fn.resolve(path):match("rev=([^/]+)")
 		}
 		for _, kind in ipairs(required_queries[language] or {}) do
@@ -213,8 +221,11 @@ print(environment.nvim.version .. "\nNeovim: " .. environment.nvim.executable)
 print("LuaSnip " .. (environment.luasnip_version or "(identified by file fingerprints)") .. ": " .. environment.luasnip)
 for _, language in ipairs(languages) do
 	local parser = environment.parsers[language]
-	print(("%s parser (ABI %s%s): %s"):format(language, tostring(parser.abi),
-		parser.revision and ", rev " .. parser.revision or "", parser.path))
+	print(
+		("%s parser (ABI %s%s): %s"):format(
+			language, tostring(parser.abi), parser.revision and ", rev " .. parser.revision or "", parser.path
+		)
+	)
 end
 print(("Dependency files verified: %d"):format(vim.tbl_count(environment.files)))
 if options.record then
@@ -231,19 +242,22 @@ end
 local ok, err = xpcall(function ()
 	for _, suite in ipairs(suites) do
 		local command = {
-			environment.nvim.executable, "--headless", "-u", "NONE", "-i", "NONE",
-			"-l", root .. "/tests/run.lua", "--child", suite
+			environment.nvim.executable, "--headless", "-u", "NONE", "-i", "NONE", "-l", root .. "/tests/run.lua", "--child",
+			suite
 		}
 		if suite == "benchmark" and options.benchmark ~= "" then
 			command[#command + 1] = options.benchmark
 		end
 		print("Running " .. suite .. "...")
 		local result = vim.system(command, {
-			cwd = root, text = true,
+			cwd = root,
+			text = true,
 			env = {
 				MATH_SNIPPETS_TEST_ENV = temporary .. "/environment.json",
-				XDG_CONFIG_HOME = temporary .. "/config", XDG_DATA_HOME = temporary .. "/data",
-				XDG_CACHE_HOME = temporary .. "/cache", XDG_STATE_HOME = temporary .. "/state",
+				XDG_CONFIG_HOME = temporary .. "/config",
+				XDG_DATA_HOME = temporary .. "/data",
+				XDG_CACHE_HOME = temporary .. "/cache",
+				XDG_STATE_HOME = temporary .. "/state",
 				NVIM_APPNAME = "nvim",
 				VIMRUNTIME = environment.nvim.runtime,
 				NVIM_LOG_FILE = temporary .. "/nvim.log"

@@ -115,7 +115,7 @@ local function measure(state)
 end
 
 print(("Neovim %s; %d rounds, %d warmups and %d measured operations per round")
-	:format(tostring(vim.version()), rounds, warmup, iterations))
+		:format(tostring(vim.version()), rounds, warmup, iterations))
 for _, version in ipairs(versions) do
 	print(("%s: %d TeX autosnippets"):format(version.label, version.count))
 end
@@ -134,12 +134,19 @@ local function expect_match(version, line, name, trigger, captures)
 	assert(snippet and params, version.label .. " did not match " .. name)
 	assert(snippet.name == name, ("%s: expected %s, got %s"):format(version.label, name, snippet.name))
 	assert(params.trigger == trigger, version.label .. " returned an unexpected matched trigger")
-	assert(vim.deep_equal(params.captures, captures), version.label .. " returned unexpected captures: " .. vim.inspect(params.captures))
+	assert(
+		vim.deep_equal(params.captures, captures),
+		version.label .. " returned unexpected captures: "
+			.. vim.inspect(params.captures)
+	)
 end
 
 local function table_header(title)
 	print("\n" .. title)
-	print(#versions == 2 and "  Case                    Baseline us     Current us    Speedup" or "  Case                     Current us")
+	print(
+		#versions == 2 and "  Case                    Baseline us     Current us    Speedup"
+			or "  Case                     Current us"
+	)
 end
 
 local function benchmark(label, setup)
@@ -166,7 +173,11 @@ local function benchmark(label, setup)
 		medians[label] = samples[math.ceil(rounds / 2)]
 	end
 	if medians.baseline then
-		print(("  %-20s %14.2f %14.2f %9.2fx"):format(label, medians.baseline, medians.current, medians.baseline / medians.current))
+		print(
+			("  %-20s %14.2f %14.2f %9.2fx"):format(
+				label, medians.baseline, medians.current, medians.baseline / medians.current
+			)
+		)
 	else
 		print(("  %-20s %14.2f"):format(label, medians.current))
 	end
@@ -235,7 +246,9 @@ for _, case in ipairs({
 	end)
 end
 
-assert(vim.treesitter.query.get("latex", "highlights"), "The edit workload requires latex highlight queries on 'runtimepath'")
+assert(
+	vim.treesitter.query.get("latex", "highlights"), "The edit workload requires latex highlight queries on 'runtimepath'"
+)
 table_header("Edit + reparse + successful matching: one-character replacement, highlighter attached (900 lines)")
 benchmark("sin after edit", function (version)
 	local line = "\\( x + sin\\)"
@@ -276,4 +289,6 @@ benchmark("sin after edit", function (version)
 		end
 	}
 end)
-print("The edit workload times buffer mutation and parsing demanded by matching, with an attached highlighter; it does not time redraw.")
+print(
+	"The edit workload times buffer mutation and parsing demanded by matching, with an attached highlighter; it does not time redraw."
+)

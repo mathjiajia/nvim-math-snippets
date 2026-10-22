@@ -79,13 +79,10 @@ check_case("before math opening delimiter", "text |\\(x\\)", {})
 check_case("before opener at start of buffer", "|\\(x\\)", {})
 check_case("before dollar at start of buffer", "|$x$", {})
 check_case("before comment in math at column zero", "\\[\n|% comment\n\\]", { in_math = true })
-check_case(
-	"before end environment at column zero", "\\begin{align}\nx\n|\\end{align}",
-	{
-		in_math = true,
-		in_align = true
-	}
-)
+check_case("before end environment at column zero", "\\begin{align}\nx\n|\\end{align}", {
+	in_math = true,
+	in_align = true
+})
 check_case("unicode byte columns", "中文 \\(α + β|\\)", { in_math = true })
 check_case("comment outside math", "% $x|$", {})
 check_case("comment inside math", "\\[x % comme|nt\ny\\]", {})
@@ -114,60 +111,55 @@ check_case("ensuremath inside text command", "\\(\\text{word \\ensuremath{x|}}\\
 check_case("after ensuremath closing brace", "\\ensuremath{x}|", {})
 
 for _, environment in ipairs({ "equation", "equation*", "displaymath", "math", "gather", "gathered", "multline" }) do
-	check_case(
-		environment .. " math", "\\begin{" .. environment .. "}\nx|\n\\end{" .. environment .. "}",
-		{
-			in_math = true
-		}
-	)
+	check_case(environment .. " math", "\\begin{" .. environment .. "}\nx|\n\\end{" .. environment .. "}", {
+		in_math = true
+	})
 end
-for _, environment in ipairs(
-	{
-		"align", "align*", "aligned", "alignedat", "alignat", "split", "eqnarray", "flalign", "array", "matrix", "pmatrix",
-		"bmatrix", "Bmatrix", "vmatrix", "Vmatrix", "smallmatrix", "cases"
-	}
-) do
+for _, environment in ipairs({
+	"align",
+	"align*",
+	"aligned",
+	"alignedat",
+	"alignat",
+	"split",
+	"eqnarray",
+	"flalign",
+	"array",
+	"matrix",
+	"pmatrix",
+	"bmatrix",
+	"Bmatrix",
+	"vmatrix",
+	"Vmatrix",
+	"smallmatrix",
+	"cases"
+}) do
 	local argument = ({ alignedat = "{2}", alignat = "{2}", array = "{cc}" })[environment] or ""
-	check_case(
-		environment .. " alignment",
-		"\\begin{" .. environment
-			.. "}" .. argument
-			.. "\nx|\n\\end{" .. environment
-			.. "}",
-		{
-			in_math = true,
-			in_align = true
-		}
-	)
+	check_case(environment .. " alignment", "\\begin{" .. environment .. "}" .. argument .. "\nx|\n\\end{" .. environment
+		.. "}", {
+		in_math = true,
+		in_align = true
+	})
 end
 for _, environment in ipairs({ "pmatrix*", "dcases", "rcases", "drcases", "dcasesra", "drcasesra" }) do
-	check_case(
-		environment .. " family", "\\begin{" .. environment .. "}x|\\end{" .. environment .. "}",
-		{
-			in_math = true,
-			in_align = true
-		}
-	)
+	check_case(environment .. " family", "\\begin{" .. environment .. "}x|\\end{" .. environment .. "}", {
+		in_math = true,
+		in_align = true
+	})
 end
 check_case("multlined family", "\\begin{multlined}x|\\end{multlined}", { in_math = true })
 -- Alignment names intentionally match families, including custom variants.
 for _, environment in ipairs({ "alignment", "alignatfoo", "xmatrix", "matrixnotation", "rcasesra" }) do
-	check_case(
-		environment .. " alignment family", "\\begin{" .. environment .. "}x|\\end{" .. environment .. "}",
-		{
-			in_math = true,
-			in_align = true
-		}
-	)
+	check_case(environment .. " alignment family", "\\begin{" .. environment .. "}x|\\end{" .. environment .. "}", {
+		in_math = true,
+		in_align = true
+	})
 end
 check_case("custom math family", "\\begin{displaymathematics}x|\\end{displaymathematics}", { in_math = true })
 check_case("subequations preserves text", "\\begin{subequations}words|\\end{subequations}", {})
-check_case(
-	"math inside subequations", "\\begin{subequations}\\begin{equation}x|\\end{equation}\\end{subequations}",
-	{
-		in_math = true
-	}
-)
+check_case("math inside subequations", "\\begin{subequations}\\begin{equation}x|\\end{equation}\\end{subequations}", {
+	in_math = true
+})
 check_case("custom text command", "\\(\\mytext{word|}\\)", {})
 check_case("textcolor preserves math", "\\(\\textcolor{red}{x|}\\)", { in_math = true })
 check_case("textwidth is not a text-mode command", "\\(\\textwidth{x|}\\)", { in_math = true })
@@ -193,7 +185,13 @@ end
 check_case("starred alignedat column count", "\\begin{alignedat*}{2|}x\\end{alignedat*}", {})
 check_case("url inside math", "\\(\\url{https://example.org/x|}\\)", {})
 check_case("multiline begin name", "\\begin\n{aligned}\nx|\n\\end{aligned}", { in_math = true, in_align = true })
-check_case("comment before begin name", "\\begin% comment\n{aligned}\nx|\n\\end{aligned}", { in_math = true, in_align = true })
+check_case(
+	"comment before begin name", "\\begin% comment\n{aligned}\nx|\n\\end{aligned}",
+	{
+		in_math = true,
+		in_align = true
+	}
+)
 check_case("array column specification", "\\begin{array}{c|c}x\\end{array}", {})
 check_case("alignat column count", "\\begin{alignat}{2|}x\\end{alignat}", {})
 check_case("math after array specification", "\\begin{array}{cc}|x\\end{array}", { in_math = true, in_align = true })
@@ -210,21 +208,16 @@ check_case("inline math inside alignment", "\\begin{align}\\(x|\\)\\end{align}",
 check_case("ensuremath inside alignment", "\\begin{align}\\ensuremath{x|}\\end{align}", { in_math = true })
 check_case("inline math inside tikzcd", "\\begin{tikzcd}\\(A|\\)\\end{tikzcd}", { in_math = true })
 check_case(
-	"text inside math inside list", "\\begin{itemize}\\item \\(\\text{word|}\\)\\end{itemize}",
-	{ in_bullets = true }
+	"text inside math inside list", "\\begin{itemize}\\item \\(\\text{word|}\\)\\end{itemize}", { in_bullets = true }
 )
 check_case(
-	"math inside text inside list", "\\begin{itemize}\\item \\(\\text{word \\(x|\\)}\\)\\end{itemize}",
-	{ in_math = true }
+	"math inside text inside list", "\\begin{itemize}\\item \\(\\text{word \\(x|\\)}\\)\\end{itemize}", { in_math = true }
 )
 check_case("opaque command inside list", "\\begin{itemize}\\item \\zcref{eq:a|}\\end{itemize}", {})
 for _, environment in ipairs({ "itemize", "enumerate" }) do
-	check_case(
-		environment .. " text", "\\begin{" .. environment .. "}\\item words|\\end{" .. environment .. "}",
-		{
-			in_bullets = true
-		}
-	)
+	check_case(environment .. " text", "\\begin{" .. environment .. "}\\item words|\\end{" .. environment .. "}", {
+		in_bullets = true
+	})
 end
 check_case("custom list family", "\\begin{compactitemize}\\item words|\\end{compactitemize}", { in_bullets = true })
 check_case("math within a list", "\\begin{itemize}\\item \\(x|\\)\\end{itemize}", { in_math = true })
@@ -235,19 +228,18 @@ check_case("no installed parser", "words $x|$", {}, "math_snippets_no_parser", f
 check_case("markdown prose", "Plain wo|rds", {}, "markdown", "markdown")
 check_case("markdown inline injection", "Words $x|+y$ here", { in_math = true }, "markdown", "markdown")
 check_case("markdown inline code", "Code `$x|+y$` here", {}, "markdown", "markdown")
-check_case(
-	"markdown latex fence injection", "```latex\n\\begin{aligned}x|\\end{aligned}\n```",
-	{
-		in_math = true,
-		in_align = true
-	},
-	"markdown", "markdown"
+check_case("markdown latex fence injection", "```latex\n\\begin{aligned}x|\\end{aligned}\n```", {
+	in_math = true,
+	in_align = true
+}, "markdown", "markdown"
 )
 check_case("markdown code fence without latex injection", "```text\n$x|+y$\n```", {}, "markdown", "markdown")
 
 -- A custom injection must override the surrounding LaTeX math context.
 -- Reset the temporary override afterward so subsequent fixtures use runtime queries.
-vim.treesitter.query.set("latex", "injections", [[
+vim.treesitter.query.set(
+	"latex", "injections",
+	[[
 ((generic_command
   command: (command_name) @_command
   arg: (curly_group) @injection.content)
@@ -255,7 +247,8 @@ vim.treesitter.query.set("latex", "injections", [[
  (#set! injection.language "lua")
  (#set! injection.include-children)
  (#offset! @injection.content 0 1 0 -1))
-]])
+]]
+)
 check_case("custom Lua injection inside math", "\\(x + \\directlua{tex.sprint(1|)} + y\\)", {})
 check_case("math after custom Lua injection", "\\(x + \\directlua{tex.sprint(1)} + y|\\)", { in_math = true })
 vim.treesitter.query.set("latex", "injections", nil)
@@ -390,7 +383,9 @@ ok, err = pcall(function ()
 	local notification = notifications[1] or {}
 	equal("parse exception warning level", notification.level, vim.log.levels.WARN)
 	local message = notification.message or ""
-	equal("parse exception identifies the plugin", message:find("nvim-math-snippets: context detection failed: ", 1, true), 1)
+	equal(
+		"parse exception identifies the plugin", message:find("nvim-math-snippets: context detection failed: ", 1, true), 1
+	)
 	equal("parse exception includes its reason", message:find("simulated parser failure", 1, true) ~= nil, true)
 	equal("parse exception retries", conditions.in_math(), false)
 	equal("parse exception text complement", conditions.in_text(), true)

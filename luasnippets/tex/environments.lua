@@ -1,22 +1,22 @@
 local tex = require("math-snippets.latex")
-local pos = require("math-snippets.position")
+local conditions = require("math-snippets.conditions")
 local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
 
 local beamer_opts = {
-	condition = expand_line_begin * pos.in_beamer * tex.in_text,
-	show_condition = pos.show_line_begin * pos.in_beamer * tex.in_text
+	condition = expand_line_begin * tex.in_beamer * tex.in_text,
+	show_condition = conditions.show_line_begin * tex.in_beamer * tex.in_text
 }
 
-local begin_opts = { condition = expand_line_begin, show_condition = pos.show_line_begin }
+local begin_opts = { condition = expand_line_begin, show_condition = conditions.show_line_begin }
 
 local bullet_opts = {
 	condition = expand_line_begin * tex.in_bullets,
-	show_condition = pos.show_line_begin * tex.in_bullets
+	show_condition = conditions.show_line_begin * tex.in_bullets
 }
 
-local env_opts = { condition = expand_line_begin * tex.in_text, show_condition = pos.show_line_begin * tex.in_text }
+local env_opts = { condition = expand_line_begin * tex.in_text, show_condition = conditions.show_line_begin * tex.in_text }
 
-local math_opts = { condition = expand_line_begin * tex.in_math, show_condition = pos.show_line_begin * tex.in_math }
+local math_opts = { condition = expand_line_begin * tex.in_math, show_condition = conditions.show_line_begin * tex.in_math }
 
 -- Restore keys keep cell contents when the matrix is regenerated.
 local function generate_matrix(_, snip)

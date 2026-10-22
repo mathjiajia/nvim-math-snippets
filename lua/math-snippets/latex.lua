@@ -318,15 +318,72 @@ local function get_context()
 	local range = { row, row + 1 }
 	local parsed, context = pcall(parse_context, parser, bufnr, row, col, range)
 	if not parsed then
-		vim.notify_once(
-			"nvim-math-snippets: context detection failed: " .. tostring(context),
-			vim.log.levels.WARN
-		)
+		vim.notify_once("nvim-math-snippets: context detection failed: " .. tostring(context), vim.log.levels.WARN)
 		-- Do not cache failures: a parser/query can become available without an edit.
 		return EMPTY
 	end
 	cache = { bufnr = bufnr, tick = tick, row = row, col = col, parser = parser, range = range, context = context }
 	return context
+end
+
+---@type vim.treesitter.Query?
+local beamer_query
+---@type table<integer, { tick: integer, parser: vim.treesitter.LanguageTree, result: boolean }>
+local beamer_cache = {}
+
+api.nvim_create_autocmd("BufUnload", {
+	group = api.nvim_create_augroup("math_snippets_beamer_cache", { clear = true }),
+	callback = function (event)
+		beamer_cache[event.buf] = nil
+	end,
+	desc = "Clear cached Beamer detection for unloaded buffers"
+})
+
+---@param parser vim.treesitter.LanguageTree
+---@param bufnr  integer
+---@return boolean
+local function detect_beamer(parser, bufnr)
+	beamer_query = beamer_query
+		or ts.query.parse("latex", [[
+		(class_include
+		  path: (curly_group_path
+		    path: (path) @class))
+	]])
+	for _, tree in ipairs(parser:parse()) do
+		local _, node = beamer_query:iter_captures(tree:root(), bufnr)()
+		if node then
+			-- The first declaration determines the class, including a non-Beamer class.
+			return vim.trim(ts.get_node_text(node, bufnr)) == "beamer"
+		end
+	end
+	return false
+end
+
+--- Check the first document class, with an optional buffer-local override.
+---@return boolean
+local function in_beamer()
+	local bufnr = api.nvim_get_current_buf()
+	local override = vim.b[bufnr].math_snippets_beamer
+	if type(override) == "boolean" then
+		return override
+	end
+	local parser = ts.get_parser(bufnr, "latex")
+	if not parser then
+		return false
+	end
+	local tick = api.nvim_buf_get_changedtick(bufnr)
+	local entry = beamer_cache[bufnr]
+	-- Explicit parser invalidation need not change the buffer tick.
+	if entry and entry.tick == tick and entry.parser == parser and parser:is_valid(true) then
+		return entry.result
+	end
+	local ok, result = pcall(detect_beamer, parser, bufnr)
+	if not ok then
+		vim.notify_once("nvim-math-snippets: Beamer detection failed: " .. tostring(result), vim.log.levels.WARN)
+		return false
+	end
+	beamer_cache[bufnr] = { tick = tick, parser = parser, result = result }
+	return result
 end
 
 -- Preserve the public complement semantics, including buffers without a parser.
@@ -335,5 +392,6 @@ return {
 	in_text = mkcond(function () return not get_context().math end),
 	in_align = mkcond(function () return get_context().align end),
 	in_bullets = mkcond(function () return get_context().bullets end),
-	in_tikzcd = mkcond(function () return get_context().tikzcd end)
+	in_tikzcd = mkcond(function () return get_context().tikzcd end),
+	in_beamer = mkcond(in_beamer)
 }

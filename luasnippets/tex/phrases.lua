@@ -1,13 +1,13 @@
 local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
 local tex = require("math-snippets.latex")
-local pos = require("math-snippets.position")
+local conditions = require("math-snippets.conditions")
 
 local reference_prefixes = { a = "auto", r = "", z = "zc" }
 
 local text_opts = { condition = tex.in_text, show_condition = tex.in_text }
 local line_begin_opts = {
 	condition = expand_line_begin * tex.in_text,
-	show_condition = pos.show_line_begin * tex.in_text
+	show_condition = conditions.show_line_begin * tex.in_text
 }
 
 local function phrase_snippet(trig, body)

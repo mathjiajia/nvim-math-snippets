@@ -27,9 +27,10 @@ local scenarios, steps, checks = 0, 0, 0
 
 local function equal(label, actual, expected)
 	checks = checks + 1
-	assert(vim.deep_equal(actual, expected), ("%s: expected %s, got %s"):format(
-		label, vim.inspect(expected), vim.inspect(actual)
-	))
+	assert(
+		vim.deep_equal(actual, expected),
+		("%s: expected %s, got %s"):format(label, vim.inspect(expected), vim.inspect(actual))
+	)
 end
 
 local function text(buffer)
@@ -44,10 +45,9 @@ local function input(keys, expected)
 	local actual
 	local ok = vim.wait(5000, function ()
 		actual = execute("return InputTests.state(...)", expected.buffer)
-		if actual.buffer ~= expected.buffer
-			or expected.mode and actual.mode ~= expected.mode
-			or expected.text and actual.text ~= expected.text
-			or expected.cursor and not vim.deep_equal(actual.cursor, expected.cursor) then
+		if actual.buffer ~= expected.buffer or expected.mode and actual.mode ~= expected.mode
+			or expected.text and actual.text ~= expected.text or expected.cursor
+				and not vim.deep_equal(actual.cursor, expected.cursor) then
 			return false
 		end
 		for _, event in ipairs(expected.events or {}) do
@@ -56,11 +56,15 @@ local function input(keys, expected)
 			end
 		end
 		return true
-	end, 1)
-	assert(ok, ("%s: timed out after %s; expected %s; got %s; recent events %s"):format(
-		fixture.name, vim.inspect(keys), vim.inspect(expected), vim.inspect(actual),
-		vim.inspect(execute("return InputTests.recent_events()"))
-	))
+	end, 1
+	)
+	assert(
+		ok,
+		("%s: timed out after %s; expected %s; got %s; recent events %s"):format(
+			fixture.name, vim.inspect(keys), vim.inspect(expected), vim.inspect(actual),
+			vim.inspect(execute("return InputTests.recent_events()"))
+		)
+	)
 	steps = steps + 1
 end
 
@@ -99,7 +103,8 @@ local function with_buffer(name, callback)
 end
 
 local function run()
-	execute([[
+	execute(
+		[[
 		local runtimepath, packpath, lua_path, lua_cpath, root = ...
 		vim.opt.runtimepath = runtimepath
 		vim.opt.packpath = packpath
@@ -165,7 +170,8 @@ local function run()
 		function InputTests.recent_events()
 			return vim.list_slice(InputTests.events, math.max(1, #InputTests.events - 11))
 		end
-	]], vim.o.runtimepath, vim.o.packpath, package.path, package.cpath, vim.fn.getcwd())
+	]], vim.o.runtimepath, vim.o.packpath, package.path, package.cpath, vim.fn.getcwd()
+	)
 
 	with_buffer("letter immediately after math", function ()
 		at_math_exit()
@@ -213,13 +219,15 @@ local function run()
 	end)
 
 	with_buffer("switching buffers and returning retains spacing", function ()
-		fixture.other = execute([[
+		fixture.other = execute(
+			[[
 			local original = ...
 			local other = vim.api.nvim_create_buf(false, true)
 			vim.keymap.set("i", "<F8>", function () vim.api.nvim_set_current_buf(other) end, { buf = original })
 			vim.keymap.set("i", "<F8>", function () vim.api.nvim_set_current_buf(original) end, { buf = other })
 			return other
-		]], fixture.buffer)
+		]], fixture.buffer
+		)
 		at_math_exit()
 		input("<F8>", { buffer = fixture.other, mode = "i", text = "" })
 		input("<F8>", { text = [[\(x\)]], mode = "i" })
@@ -240,19 +248,23 @@ local function run()
 	end)
 
 	local accepted, err = pcall(with_buffer, "displayed autocmd error is rejected", function ()
-		execute([[
+		execute(
+			[[
 			vim.api.nvim_create_autocmd("InsertEnter", {
 				buf = ...,
 				once = true,
 				callback = function () error("INTEGRATION INJECTED INSERTENTER ERROR") end
 			})
-		]], fixture.buffer)
+		]], fixture.buffer
+		)
 		input("i", { mode = "i", events = { "InsertEnter" } })
 		fixture.expected = ""
 	end)
 	equal("displayed autocmd error fails the scenario", accepted, false)
-	equal("failure includes the displayed error",
-		tostring(err):find("INTEGRATION INJECTED INSERTENTER ERROR", 1, true) ~= nil, true)
+	equal(
+		"failure includes the displayed error", tostring(err):find("INTEGRATION INJECTED INSERTENTER ERROR", 1, true) ~= nil,
+		true
+	)
 	request("nvim_command", "messages clear")
 	scenarios = scenarios + 1
 end

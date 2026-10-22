@@ -28,9 +28,23 @@ Visual-selection snippets use LuaSnip's `LS_SELECT_RAW`. Configure
 `cut_selection_keys` in LuaSnip to choose the visual-mode mapping that stores the
 selection for the next snippet.
 
+## General conditions
+
+`require("math-snippets.conditions")` provides conditions shared by filetypes:
+
+| Condition | When it matches |
+| --- | --- |
+| `in_comments` | A Tree-sitter `comment` or `comment.*` capture immediately before the cursor; requires active highlighting |
+| `on_top` | The cursor is in the first three lines |
+| `show_line_begin` | The line before the cursor contains only indentation and at most one token; used for completion visibility |
+
+`math-snippets.latex` contains the LaTeX-specific conditions, including Beamer
+detection.
+
 ## LaTeX conditions
 
-`require("math-snippets.latex")` provides composable LuaSnip conditions:
+`require("math-snippets.latex")` provides composable LuaSnip conditions for the
+cursor's LaTeX context:
 
 | Condition    | When it matches                                                                              |
 | ------------ | -------------------------------------------------------------------------------------------- |
@@ -89,6 +103,28 @@ Malformed input that only produces `ERROR` nodes, such as an unmatched `\begin`,
 may not be recognized until the surrounding syntax is completed.
 Custom TeX macros and environments are not expanded; names follow these family
 heuristics, which can be adjusted in `lua/math-snippets/latex.lua` if needed.
+
+## Beamer snippets
+
+`require("math-snippets.latex").in_beamer`, used by `bfr` and `bbl`, checks the
+first `\documentclass` declaration in the current buffer. Detection uses the
+LaTeX Tree-sitter parser, supports multiline
+declarations and options, and ignores commented-out declarations. Results are
+cached per buffer until its text changes or its parser is invalidated. Unloading
+a buffer clears its cache entry. Unexpected detection failures warn once and
+remain retryable without editing the buffer.
+
+For an included file or a custom class, set a buffer-local override:
+
+```lua
+vim.b.math_snippets_beamer = true   -- Enable Beamer snippets
+vim.b.math_snippets_beamer = false  -- Disable Beamer snippets
+vim.b.math_snippets_beamer = nil    -- Use automatic detection
+```
+
+Without an override, an unavailable parser or absent class declaration returns
+false. Automatic detection examines the current buffer and does not expand TeX
+macros or resolve class inheritance.
 
 ## Tests
 

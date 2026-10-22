@@ -1,7 +1,7 @@
 local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
-local pos = require("math-snippets.position")
+local conditions = require("math-snippets.conditions")
 
-local opts = { condition = expand_line_begin, show_condition = pos.show_line_begin }
+local opts = { condition = expand_line_begin, show_condition = conditions.show_line_begin }
 
 local snips = {
 	s({ trig = "#([2-6])", name = "Heading", desc = "Add Heading", trigEngine = "pattern", hidden = true }, {
@@ -31,8 +31,8 @@ local snips = {
 			{}
 			]], { i(1), p(os.date, "%Y-%m-%dT%H:%M:%S+0800"), i(2), i(3), i(4), i(0) }
 	), {
-		condition = pos.on_top * expand_line_begin,
-		show_condition = pos.on_top * pos.show_line_begin
+		condition = conditions.on_top * expand_line_begin,
+		show_condition = conditions.on_top * conditions.show_line_begin
 	}),
 
 	s({ trig = "td", name = "too long, do not read" }, { t("tl;dr: ") }, opts),

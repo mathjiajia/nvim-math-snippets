@@ -115,25 +115,30 @@ check("Python shebang", function ()
 end)
 
 check("comment captures", function ()
-	local context = require("math-snippets.context")
+	local conditions = require("math-snippets.conditions")
 	with_buffer({ "% comment", "ordinary" }, function ()
-		equal("comment detection without highlighting", context.in_comments(), false)
+		equal("comment detection without highlighting", conditions.in_comments(), false)
 		vim.treesitter.start(0, "latex")
-		equal("comment capture before cursor", context.in_comments(), true)
+		equal("comment capture before cursor", conditions.in_comments(), true)
 		vim.api.nvim_win_set_cursor(0, { 1, 0 })
-		equal("before comment at column zero", context.in_comments(), false)
+		equal("before comment at column zero", conditions.in_comments(), false)
 		vim.api.nvim_win_set_cursor(0, { 2, 4 })
-		equal("ordinary text has no comment capture", context.in_comments(), false)
+		equal("ordinary text has no comment capture", conditions.in_comments(), false)
 		vim.treesitter.stop(0)
-	end, { 1, 4 })
+	end, { 1, 4 }
+	)
 end)
 
 check("specialized comment captures", function ()
-	local context = require("math-snippets.context")
+	local conditions = require("math-snippets.conditions")
 	local ok, err = pcall(function ()
 		for _, case in ipairs({
-			{ "comment.documentation", true }, { "comment.todo", true }, { "comment.documentation.latex", true },
-			{ "commentish", false }, { "commentary", false }, { "punctuation.comment", false }
+			{ "comment.documentation", true },
+			{ "comment.todo", true },
+			{ "comment.documentation.latex", true },
+			{ "commentish", false },
+			{ "commentary", false },
+			{ "punctuation.comment", false }
 		}) do
 			vim.treesitter.query.set("latex", "highlights", "(line_comment) @" .. case[1])
 			with_buffer({ "% comment" }, function ()
@@ -141,9 +146,10 @@ check("specialized comment captures", function ()
 				local captures = vim.treesitter.get_captures(0, { 0, 3 })
 				local names = vim.tbl_map(function (capture) return capture.capture end, captures)
 				equal("fixture has only @" .. case[1], names, { case[1] })
-				equal("comment detection for @" .. case[1], context.in_comments(), case[2])
+				equal("comment detection for @" .. case[1], conditions.in_comments(), case[2])
 				vim.treesitter.stop(0)
-			end, { 1, 4 })
+			end, { 1, 4 }
+			)
 		end
 	end)
 	vim.treesitter.query.set("latex", "highlights", nil)
@@ -279,17 +285,19 @@ end)
 
 check("automatic inline math preserves pattern matches", function ()
 	local cases = {
-		"words x", "words a", "words I", "words 2ab", "words i+1", "words x_y", "words x=y",
-		"words x,", "words 2ab;", "words i+1.", "words x-", "words x)", "words x!",
-		"中😀 x", "中😀 2ab", "中😀 i+1", "words α", "", "plain words",
-		("prefix "):rep(512) .. "x",
-		"words " .. ("1"):rep(1024) .. ("a"):rep(1024)
+		"words x", "words a", "words I", "words 2ab", "words i+1", "words x_y", "words x=y", "words x,", "words 2ab;",
+		"words i+1.", "words x-", "words x)", "words x!", "中😀 x", "中😀 2ab", "中😀 i+1", "words α", "",
+		"plain words", ("prefix "):rep(512) .. "x", "words " .. ("1"):rep(1024) .. ("a"):rep(1024)
 	}
 	for _, name in ipairs({ "single-letter variable", "surround word starting with number", "surround i+1" }) do
 		local snippet = find("tex/misc", "name", name)
-		local reference = ls.snippet({ trig = snippet.trigger, trigEngine = "pattern", wordTrig = false }, ls.text_node(""), {
-			condition = require("math-snippets.latex").in_text
-		})
+		local reference = ls.snippet(
+			{ trig = snippet.trigger, trigEngine = "pattern", wordTrig = false },
+			ls.text_node(""),
+			{
+				condition = require("math-snippets.latex").in_text
+			}
+		)
 		with_buffer({ "" }, function ()
 			for case_index, source in ipairs(cases) do
 				for suffix_index, suffix in ipairs({ "", "x", "!", " ", "\t", " \t ", (" \t"):rep(512) }) do
@@ -321,23 +329,131 @@ check("Beamer document class detection", function ()
 		{ "\\documentclass{article}", false },
 		{ "\\documentclass{article} % {beamer}", false },
 		{ "\\documentclassfoo{beamer}", false },
-		{ "\\documentclass{beamer} garbage", false }
+		{ "\\documentclass{beamer} text after the declaration", true },
+		{ "\\documentclass\n[aspectratio=169]\n{beamer}", true },
+		{ "\\documentclass% comment\n[aspectratio=169]% comment\n{beamer}", true },
+		{ "% \\documentclass{beamer}\n\\documentclass{article}", false },
+		{ "\\documentclass{article}\n\\documentclass{beamer}", false },
+		{ "\\documentclass{beamer}\n\\documentclass{article}", true },
+		{ "\\documentclass[beamer]{article}", false },
+		{ "\\documentclass{beamerarticle}", false },
+		{ "ordinary text", false }
 	}) do
-		with_buffer({ case[1], "", "bfr" }, function ()
+		local lines = vim.split(case[1], "\n", { plain = true })
+		vim.list_extend(lines, { "", "bfr" })
+		with_buffer(lines, function ()
 			equal("Beamer expansion for " .. case[1], frame:matches("bfr") ~= nil, case[2])
 			equal("Beamer completion for " .. case[1], frame.show_condition("bfr"), case[2])
-		end, { 3, 3 })
+		end, { #lines, 3 }
+		)
 	end
-	for _, row in ipairs({ 10, 11 }) do
+	for _, row in ipairs({ 10, 11, 100 }) do
 		local lines = {}
 		for index = 1, row - 1 do
 			lines[index] = ""
 		end
 		lines[row], lines[row + 1] = "\\documentclass{beamer}", "bfr"
 		with_buffer(lines, function ()
-			equal("Beamer declaration on line " .. row, frame:matches("bfr") ~= nil, row == 10)
-		end, { row + 1, 3 })
+			equal("Beamer declaration on line " .. row, frame:matches("bfr") ~= nil, true)
+		end, { row + 1, 3 }
+		)
 	end
+end)
+
+check("Beamer cache across buffers and unload", function ()
+	local tex = require("math-snippets.latex")
+	local reference = setmetatable({}, { __mode = "v" })
+	with_buffer({ "\\documentclass{beamer}" }, function ()
+		local buffer = vim.api.nvim_get_current_buf()
+		local parser = vim.treesitter.get_parser(buffer, "latex")
+		reference[1] = parser
+		local original_parse = parser.parse
+		local parses = 0
+		parser.parse = function (self, ...)
+			parses = parses + 1
+			return original_parse(self, ...)
+		end
+		local ok, err = pcall(function ()
+			equal("Beamer first buffer detection", tex.in_beamer(), true)
+			with_buffer({ "\\documentclass{article}" }, function ()
+				equal("Beamer second buffer detection", tex.in_beamer(), false)
+			end)
+			vim.api.nvim_set_current_buf(buffer)
+			equal("Beamer first buffer after switching", tex.in_beamer(), true)
+			equal("Beamer cache survives switching and unloading another buffer", parses, 1)
+		end)
+		parser.parse = original_parse
+		if not ok then
+			error(err)
+		end
+	end)
+	collectgarbage("collect")
+	collectgarbage("collect")
+	equal("Beamer cache releases an unloaded buffer's parser", reference[1] == nil, true)
+end)
+
+check("Beamer cache, overrides and recovery", function ()
+	local tex = require("math-snippets.latex")
+	with_buffer({ "\\documentclass{beamer}" }, function ()
+		local buffer = vim.api.nvim_get_current_buf()
+		local parser = vim.treesitter.get_parser(buffer, "latex")
+		local original_parse = parser.parse
+		local original_get_parser = vim.treesitter.get_parser
+		local original_notify = vim.notify
+		local notifications = {}
+		vim.notify = function (message, level)
+			notifications[#notifications + 1] = { message = message, level = level }
+		end
+		local ok, err = pcall(function ()
+			local parses = 0
+			parser.parse = function (self, ...)
+				parses = parses + 1
+				return original_parse(self, ...)
+			end
+			equal("Beamer initial detection", tex.in_beamer(), true)
+			equal("Beamer cached detection", tex.in_beamer(), true)
+			equal("Beamer detection shares a cached parse", parses, 1)
+			local tick = vim.api.nvim_buf_get_changedtick(buffer)
+			parser:invalidate()
+			equal("Beamer invalidation recovers", tex.in_beamer(), true)
+			equal("Beamer invalidation reparses", parses, 2)
+			equal("Beamer invalidation needs no edit", vim.api.nvim_buf_get_changedtick(buffer), tick)
+
+			vim.api.nvim_buf_set_lines(buffer, 0, -1, false, { "\\documentclass{article}" })
+			equal("Beamer edit updates the class", tex.in_beamer(), false)
+			local before_override = parses
+			vim.b.math_snippets_beamer = true
+			equal("Beamer override enables an article buffer", tex.in_beamer(), true)
+			vim.b.math_snippets_beamer = false
+			equal("Beamer override disables detection", tex.in_beamer(), false)
+			equal("Beamer overrides skip parsing", parses, before_override)
+			vim.b.math_snippets_beamer = nil
+			equal("clearing Beamer override restores detection", tex.in_beamer(), false)
+
+			vim.api.nvim_buf_set_lines(buffer, 0, -1, false, { "\\documentclass{beamer}" })
+			parser.parse = function () error("simulated Beamer parser failure") end
+			equal("Beamer parse exception fails closed", tex.in_beamer(), false)
+			equal("Beamer parse exception retries", tex.in_beamer(), false)
+			equal("Beamer parse exception warns once", #notifications, 1)
+			equal("Beamer warning severity", (notifications[1] or {}).level, vim.log.levels.WARN)
+			equal("Beamer warning includes the error",
+				((notifications[1] or {}).message or ""):find("simulated Beamer parser failure", 1, true) ~= nil, true)
+			parser.parse = original_parse
+			equal("Beamer detection recovers without an edit", tex.in_beamer(), true)
+			vim.treesitter.get_parser = function () return nil, "unavailable parser" end
+			equal("missing Beamer parser fails closed", tex.in_beamer(), false)
+			equal("missing Beamer parser stays quiet", #notifications, 1)
+			vim.treesitter.get_parser = original_get_parser
+			equal("Beamer parser lookup recovers", tex.in_beamer(), true)
+		end)
+		parser.parse = original_parse
+		vim.treesitter.get_parser = original_get_parser
+		vim.notify = original_notify
+		vim.b.math_snippets_beamer = nil
+		if not ok then
+			error(err)
+		end
+	end)
 end)
 
 for _, case in ipairs({
@@ -374,22 +490,25 @@ check("command trigger boundaries and captures", function ()
 		{ "tex/symbols", "nabl", false }
 	}) do
 		local snippet = find(case[1], "trigger", case[2])
-		for _, prefix in ipairs({ "", " ", "\t", "(", "x", "_", "7", "α", "中", "😀", "é", ("x "):rep(1024) .. "😀" }) do
+		for _, prefix in ipairs(
+			{ "", " ", "\t", "(", "x", "_", "7", "α", "中", "😀", "é", ("x "):rep(1024) .. "😀" }
+		) do
 			local line = prefix .. case[2]
 			with_buffer({ "\\[", line, "\\]" }, function ()
 				local match = snippet:matches(line)
 				local blocked = case[3] and (prefix == "x" or prefix == "_" or prefix == "7")
 				equal(
-					case[2] .. " after " .. (prefix:sub(1, 12)),
-					match and { match.trigger, match.captures },
+					case[2] .. " after " .. (prefix:sub(1, 12)), match and { match.trigger, match.captures },
 					not blocked and { case[2], { case[2] } } or nil
 				)
-			end, { 2, #line })
+			end, { 2, #line }
+			)
 		end
 		for _, line in ipairs({ "\\" .. case[2], "\\\\" .. case[2], "中\\" .. case[2], case[2] .. "x", case[2] .. " " }) do
 			with_buffer({ "\\[", line, "\\]" }, function ()
 				equal(case[2] .. " rejects " .. line, snippet:matches(line), nil)
-			end, { 2, #line })
+			end, { 2, #line }
+			)
 		end
 	end
 	for _, case in ipairs({
@@ -399,8 +518,7 @@ check("command trigger boundaries and captures", function ()
 	}) do
 		equal(
 			case[2] .. " preserves preceding text",
-			expand_trigger(find(case[1], "trigger", case[2]), "$ " .. case[3] .. "$", #case[3] + 2),
-			"$ " .. case[4] .. "$"
+			expand_trigger(find(case[1], "trigger", case[2]), "$ " .. case[3] .. "$", #case[3] + 2), "$ " .. case[4] .. "$"
 		)
 	end
 end)
@@ -439,20 +557,26 @@ check("bounded pattern matches and captures", function ()
 			with_buffer(lines, function ()
 				local match = snippet:matches(line)
 				equal(
-					case[2] .. " suffix and captures after " .. prefix:sub(1, 12),
-					match and { match.trigger, match.captures }, { case[3], case[4] }
+					case[2] .. " suffix and captures after " .. prefix:sub(1, 12), match and { match.trigger, match.captures },
+					{ case[3], case[4] }
 				)
 				equal(case[2] .. " remains end anchored", snippet:matches(line .. "!"), nil)
-			end, { case[5] and 1 or 2, #line })
+			end, { case[5] and 1 or 2, #line }
+			)
 		end
 	end
 	local wlog = find("tex/phrases", "name", "without loss of generality")
 	with_buffer({ "preceding text Wlog" }, function ()
 		equal("bounded matching preserves full line for conditions", wlog:matches("preceding text Wlog"), nil)
 	end)
-	equal("bounded matching preserves word boundaries", with_buffer({ "$ xHiX$" }, function ()
-		return find("tex/operators", "name", "cohomology-a"):matches("$ xHiX")
-	end, 6), nil)
+	equal(
+		"bounded matching preserves word boundaries",
+		with_buffer({ "$ xHiX$" }, function ()
+			return find("tex/operators", "name", "cohomology-a"):matches("$ xHiX")
+		end, 6
+		),
+		nil
+	)
 end)
 
 for _, case in ipairs({ { "rmap", "dashrightarrow" }, { "emb", "hookrightarrow" } }) do
@@ -600,7 +724,9 @@ check("TODO dates remain fresh and editable", function ()
 			ls.change_choice(1)
 			equal("TODO date-only choice starts with current date", buffer_text(), "-- TODO:  <" .. today .. ">")
 			ls.change_choice(-1)
-			equal("TODO signature switching preserves edited date", buffer_text(), "-- TODO:  <custom date, " .. username .. ">")
+			equal(
+				"TODO signature switching preserves edited date", buffer_text(), "-- TODO:  <custom date, " .. username .. ">"
+			)
 			ls.jump(1)
 			equal(
 				"TODO date is followed by username field", session.current_nodes[vim.api.nvim_get_current_buf()]:get_text(),
@@ -614,7 +740,12 @@ check("TODO dates remain fresh and editable", function ()
 		end)
 		today = "04-01-26"
 		for _, case in ipairs({
-			{ "todo", "TODO" }, { "fix", "FIX" }, { "hack", "HACK" }, { "warn", "WARN" }, { "perf", "PERF" }, { "note", "NOTE" }
+			{ "todo", "TODO" },
+			{ "fix", "FIX" },
+			{ "hack", "HACK" },
+			{ "warn", "WARN" },
+			{ "perf", "PERF" },
+			{ "note", "NOTE" }
 		}) do
 			with_buffer({ "" }, function ()
 				vim.bo.commentstring = "-- %s"

@@ -1,8 +1,8 @@
 local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
-local pos = require("math-snippets.position")
+local conditions = require("math-snippets.conditions")
 
 local commit_specs = { "feat", "fix", "chore", "revert", "refactor", "cleanup" }
-local opts = { condition = expand_line_begin, show_condition = pos.show_line_begin }
+local opts = { condition = expand_line_begin, show_condition = conditions.show_line_begin }
 local snips = {}
 
 for _, trig in ipairs(commit_specs) do

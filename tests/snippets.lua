@@ -360,6 +360,39 @@ check("Beamer document class detection", function ()
 	end
 end)
 
+check("Beamer incomplete declarations at EOF", function ()
+	local tex = require("math-snippets.latex")
+	local original_notify_once = vim.notify_once
+	local notifications = {}
+	vim.notify_once = function (message) notifications[#notifications + 1] = message end
+	local ok, err = pcall(function ()
+		for _, case in ipairs({
+			{ "\\documentclass{beamer", true },
+			{ "\\documentclass{article", false },
+			{ "\\documentclass\n{\nbeamer\n", true },
+			{ "\\documentclass\n{\narticle\n", false }
+		}) do
+			-- No following snippet line: recovered path nodes can end just beyond EOF.
+			local lines = vim.split(case[1], "\n", { plain = true })
+			local row, col = #lines - 1, #lines[#lines]
+			with_buffer(lines, function ()
+				notifications = {}
+				equal("incomplete class at EOF: " .. case[1], tex.in_beamer(), case[2])
+				equal("incomplete class stays quiet: " .. case[1], #notifications, 0)
+				notifications = {}
+				vim.api.nvim_buf_set_text(0, row, col, row, col, { "}" })
+				equal("completed class after EOF edit: " .. case[1], tex.in_beamer(), case[2])
+				equal("completed class stays quiet: " .. case[1], #notifications, 0)
+			end, { row + 1, col }
+			)
+		end
+	end)
+	vim.notify_once = original_notify_once
+	if not ok then
+		error(err)
+	end
+end)
+
 check("Beamer cache across buffers and unload", function ()
 	local tex = require("math-snippets.latex")
 	local reference = setmetatable({}, { __mode = "v" })

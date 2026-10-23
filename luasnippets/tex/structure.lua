@@ -24,6 +24,8 @@ local math_line_opts = {
 	show_condition = conditions.show_line_begin * tex.in_math
 }
 
+---@param trig string
+---@param env  string Environment name
 local function env_snippet(trig, env)
 	local context = { trig = trig, name = trig, desc = trig .. " Environment" }
 	return s(context, fmta([[
@@ -33,6 +35,10 @@ local function env_snippet(trig, env)
 			]], { t(env), i(0), t(env) }), env_opts)
 end
 
+-- The title is slugified for the \zlabel. Lambda expressions are single-use
+-- in LuaSnip (instantiation rewrites them), so each snippet builds its own.
+---@param trig string Also used as the label prefix
+---@param env  string Environment name
 local function labeled_env_snippet(trig, env)
 	local context = { trig = trig, name = trig, desc = "Labeled " .. trig .. " Environment" }
 	return s(
@@ -47,6 +53,8 @@ local function labeled_env_snippet(trig, env)
 	)
 end
 
+---@param trig string Also used as the label prefix
+---@param name string Sectioning command without backslash
 local function sec_snippet(trig, name)
 	local context = { trig = trig, name = name, desc = name }
 	return s(
@@ -62,6 +70,8 @@ local function sec_snippet(trig, name)
 end
 
 -- Restore keys keep cell contents when a matrix or cases block is regenerated.
+---@param _    string[]
+---@param snip table    LuaSnip snippet with captures: kind, rows, columns, augmentation
 local function generate_matrix(_, snip)
 	local rows = tonumber(snip.captures[2])
 	local cols = tonumber(snip.captures[3])
@@ -85,6 +95,8 @@ local function generate_matrix(_, snip)
 	return sn(nil, nodes)
 end
 
+---@param _    string[]
+---@param snip table    LuaSnip snippet whose first capture is the optional row count
 local function generate_cases(_, snip)
 	local rows = tonumber(snip.captures[1]) or 2
 	local nodes = {}
@@ -101,6 +113,9 @@ local function generate_cases(_, snip)
 	return sn(nil, nodes)
 end
 
+---@param _    string[]
+---@param snip table    LuaSnip snippet whose first capture is the matrix kind
+---@return string
 local function matrix_name(_, snip)
 	return snip.captures[1] .. "matrix"
 end
@@ -219,12 +234,6 @@ local autosnips = {
 		{}
 		]], { i(1), i(0) }), { condition = tex.in_text }),
 
-	s({ trig = "bseq", name = "bseq", desc = "bseq Environment" }, fmta([[
-			\begin{<>}
-				<>
-			\end{<>}
-			]], { t("equation*"), i(0), t("equation*") }), env_opts),
-
 	s({
 		trig = "beq",
 		desc = "labeled equation"
@@ -256,14 +265,18 @@ local autosnips = {
 	), begin_opts),
 
 	-- Cases, column vectors, and alignment aids.
-	s(
-		{ trig = "(%d?)cases", name = "cases", desc = "cases", trigEngine = "pattern", hidden = true },
-		fmta([[
+	s({
+		trig = "(%d?)cases",
+		name = "cases",
+		desc = "cases",
+		trigEngine = "pattern",
+		trigEngineOpts = { max_len = 6 },
+		hidden = true
+	}, fmta([[
 			\begin{cases}
 				<>
 			\end{cases}
-			]], { d(1, generate_cases) }), math_line_opts
-	),
+			]], { d(1, generate_cases) }), math_line_opts),
 
 	s({
 		trig = "cvec",
@@ -313,6 +326,7 @@ for trig, command in pairs(sec_specs) do
 end
 
 local env_specs = {
+	bseq = "equation*",
 	proof = "proof",
 	conj = "conjecture",
 	cor = "corollary",

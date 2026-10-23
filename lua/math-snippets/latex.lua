@@ -1,12 +1,19 @@
+-- LaTeX context detection for LuaSnip conditions, based on the Tree-sitter
+-- tree of the current buffer. See the README for the mode rules.
 local api = vim.api
 local ts = vim.treesitter
 local mkcond = require("luasnip.extras.conditions").make_condition
 
+-- Read text directly for nodes whose ranges lie within the buffer.
 ---@param node  TSNode
 ---@param bufnr integer
 ---@return string
 local function node_text(node, bufnr)
 	local start_row, start_col, end_row, end_col = node:range()
+	if end_col == 0 then
+		-- Native extraction normalizes recovered nodes ending immediately after EOF.
+		return ts.get_node_text(node, bufnr)
+	end
 	local lines = api.nvim_buf_get_text(bufnr, start_row, start_col, end_row, end_col, {})
 	return lines[2] and table.concat(lines, "\n") or lines[1] or ""
 end
@@ -95,13 +102,14 @@ local function environment_name(node, bufnr)
 	end
 end
 
+-- The name without its leading backslash and at most one trailing star.
 ---@param node  TSNode
 ---@param bufnr integer
 ---@return string?
 local function command_name(node, bufnr)
 	local command = child_or_field(node, 0, "command_name", "command")
 	if command then
-		return (node_text(command, bufnr):gsub("^\\", ""):gsub("%*$", ""))
+		return node_text(command, bufnr):match("^\\?(.-)%*?$")
 	end
 end
 
@@ -144,7 +152,22 @@ end
 ---@field bullets boolean
 ---@field tikzcd  boolean
 
+-- Contexts are immutable, so the few possible values are shared.
+---@type math_snippets.Context
 local EMPTY = { math = false, align = false, bullets = false, tikzcd = false }
+---@type math_snippets.Context
+local BULLETS = { math = false, align = false, bullets = true, tikzcd = false }
+---@type table<boolean, table<boolean, math_snippets.Context>> indexed by [align][tikzcd]
+local MATH = {
+	[false] = {
+		[false] = { math = true, align = false, bullets = false, tikzcd = false },
+		[true] = { math = true, align = false, bullets = false, tikzcd = true }
+	},
+	[true] = {
+		[false] = { math = true, align = true, bullets = false, tikzcd = false },
+		[true] = { math = true, align = true, bullets = false, tikzcd = true }
+	}
+}
 
 ---@param node      TSNode
 ---@param kind      string
@@ -230,18 +253,10 @@ local function classify(node, bufnr, row, col)
 		child, node = node, node:parent()
 	end
 	if math_mode then
-		return {
-			math = true,
-			-- Explicit math nested inside an alignment establishes its own scope.
-			align = ALIGN_ENVS(math_environment),
-			bullets = false,
-			tikzcd = math_environment == "tikzcd"
-		}
+		-- Explicit math nested inside an alignment establishes its own scope.
+		return MATH[ALIGN_ENVS(math_environment)][math_environment == "tikzcd"]
 	end
-	if bullets then
-		return { math = false, align = false, bullets = true, tikzcd = false }
-	end
-	return EMPTY
+	return bullets and BULLETS or EMPTY
 end
 
 ---@param parser vim.treesitter.LanguageTree
@@ -279,17 +294,16 @@ local function parse_context(parser, bufnr, row, col, range)
 end
 
 -- Share one result across conditions at the same insertion point; no cleanup needed.
+-- A single record is updated in place rather than reallocated on every miss.
 ---@class math_snippets.ContextCache
----@field bufnr   integer
----@field tick    integer
----@field row     integer
----@field col     integer
----@field parser  vim.treesitter.LanguageTree
----@field range   [integer, integer]
----@field context math_snippets.Context
-
----@type math_snippets.ContextCache?
-local cache
+---@field bufnr   integer?
+---@field tick    integer?
+---@field row     integer?
+---@field col     integer?
+---@field parser  vim.treesitter.LanguageTree?
+---@field range   [integer, integer]?
+---@field context math_snippets.Context?
+local cache = {}
 local filetype_opts = { buf = 0 }
 
 ---@return math_snippets.Context
@@ -310,8 +324,8 @@ local function get_context()
 		return EMPTY
 	end
 	-- Parser replacement and explicit invalidation need not change the buffer tick.
-	if cache and cache.bufnr == bufnr and cache.tick == tick and cache.row == row and cache.col == col
-		and cache.parser == parser and parser:is_valid(false, cache.range) then
+	if cache.bufnr == bufnr and cache.tick == tick and cache.row == row and cache.col == col and cache.parser == parser
+		and parser:is_valid(false, cache.range) then
 		return cache.context
 	end
 
@@ -322,7 +336,8 @@ local function get_context()
 		-- Do not cache failures: a parser/query can become available without an edit.
 		return EMPTY
 	end
-	cache = { bufnr = bufnr, tick = tick, row = row, col = col, parser = parser, range = range, context = context }
+	cache.bufnr, cache.tick, cache.row, cache.col = bufnr, tick, row, col
+	cache.parser, cache.range, cache.context = parser, range, context
 	return context
 end
 
@@ -353,7 +368,7 @@ local function detect_beamer(parser, bufnr)
 		local _, node = beamer_query:iter_captures(tree:root(), bufnr)()
 		if node then
 			-- The first declaration determines the class, including a non-Beamer class.
-			return vim.trim(ts.get_node_text(node, bufnr)) == "beamer"
+			return vim.trim(node_text(node, bufnr)) == "beamer"
 		end
 	end
 	return false
@@ -386,8 +401,16 @@ local function in_beamer()
 	return result
 end
 
--- Preserve the public complement semantics, including buffers without a parser.
-return {
+-- Composable LuaSnip conditions for the cursor's LaTeX context. Positive
+-- conditions are false without a parser; in_text is the complement of in_math.
+---@class math_snippets.LatexConditions
+---@field in_math    math_snippets.Condition Inline/display math, math environments, \ensuremath
+---@field in_text    math_snippets.Condition Not in_math, including buffers without a parser
+---@field in_align   math_snippets.Condition Math inside align/array/matrix/case families or split
+---@field in_bullets math_snippets.Condition Text inside itemize/enumerate/description families
+---@field in_tikzcd  math_snippets.Condition Math inside a tikzcd environment
+---@field in_beamer  math_snippets.Condition First \documentclass is beamer, or vim.b.math_snippets_beamer
+local M = {
 	in_math = mkcond(function () return get_context().math end),
 	in_text = mkcond(function () return not get_context().math end),
 	in_align = mkcond(function () return get_context().align end),
@@ -395,3 +418,5 @@ return {
 	in_tikzcd = mkcond(function () return get_context().tikzcd end),
 	in_beamer = mkcond(in_beamer)
 }
+
+return M

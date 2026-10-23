@@ -9,17 +9,30 @@ local line_begin_opts = {
 	show_condition = conditions.show_line_begin * tex.in_text
 }
 
+-- Captured letter of the `([arz])ref` trigger to the reference command prefix.
 local reference_prefixes = { a = "auto", r = "", z = "zc" }
 
+---@param _    string[]
+---@param snip table    LuaSnip snippet with the captured reference letter
+---@return string
+local function reference_prefix(_, snip)
+	return reference_prefixes[snip.captures[1]]
+end
+
+---@param trig string
+---@param body string
 local function phrase_snippet(trig, body)
 	return s({ trig = trig, desc = trig }, t(body), text_opts)
 end
 
+-- `qc` -> `\(\mathbb{Q}\)-Cartier`; the captured letter picks the number field.
+---@param trig string Lua pattern capturing `q` or `r`
+---@param name string
 local function rational_phrase_snippet(trig, name)
 	return s({ trig = trig, name = name, trigEngine = "pattern", trigEngineOpts = { max_len = 2 } }, {
 		f(function (_, snip)
 			return "\\(\\mathbb{" .. snip.captures[1]:upper() .. "}\\)-" .. name
-		end, {})
+		end)
 	}, text_opts
 	)
 end
@@ -54,20 +67,14 @@ local autosnips = {
 		trigEngine = "pattern",
 		trigEngineOpts = { max_len = 4 },
 		hidden = true
-	},
-		fmta([[\<>ref{<>}<>]], {
-			f(function (_, snip)
-				return reference_prefixes[snip.captures[1]]
-			end),
-			i(1),
-			i(0)
-		}), text_opts),
+	}, fmta([[\<>ref{<>}<>]], { f(reference_prefix), i(1), i(0) }), text_opts),
 
 	s({ trig = "eqref", desc = "add a reference with eqref", hidden = true }, fmta([[\eqref{eq:<>}<>]], { i(1), i(0) }), {
 		condition = tex.in_text,
 		show_condition = tex.in_text,
 		callbacks = {
 			[1] = {
+				-- Blink is optional and only loaded when the label field is entered.
 				[events.enter] = function ()
 					local ok, blink = pcall(require, "blink.cmp")
 					if ok then
@@ -93,7 +100,7 @@ local autosnips = {
 		{
 			f(function (_, snip)
 				return snip.captures[1] .. "ithout loss of generality"
-			end, {})
+			end)
 		}, line_begin_opts),
 
 	rational_phrase_snippet("([qr])c", "Cartier"),

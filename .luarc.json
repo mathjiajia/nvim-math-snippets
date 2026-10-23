@@ -19,6 +19,9 @@
     "vim"
   ],
   "runtime.version": "LuaJIT",
+  "workspace.library": [
+    ".deps/LuaSnip/lua"
+  ],
   "workspace.checkThirdParty": false,
   "telemetry.enable": false
 }

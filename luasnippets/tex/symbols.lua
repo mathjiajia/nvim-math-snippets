@@ -2,21 +2,32 @@ local tex = require("math-snippets.latex")
 local not_after_backslash = require("luasnip.extras.conditions.expand").trigger_not_preceded_by("\\")
 
 local math_opts = { condition = tex.in_math, show_condition = tex.in_math }
+-- Commands typed without their backslash must not expand after an existing one.
 local command_opts = { condition = not_after_backslash * tex.in_math, show_condition = tex.in_math }
 
-local function symbol_snippet(context, cmd)
-	context.desc = cmd
-	context.name = context.name or cmd:gsub([[\]], "")
-	context.docstring = cmd .. [[{0}]]
-	context.wordTrig = false
+-- A symbol whose trigger is the command's own name is hidden from completion.
+---@param trig     string
+---@param name     string
+---@param cmd      string   Command including its backslash
+---@param priority integer?
+local function symbol_snippet(trig, name, cmd, priority)
+	local context = {
+		trig = trig,
+		name = name,
+		desc = cmd,
+		docstring = cmd .. [[{0}]],
+		wordTrig = false,
+		priority = priority
+	}
 	local opts = math_opts
-	if cmd:find(context.trig) == 2 then -- command always starts with backslash
+	if cmd:sub(2, #trig + 1) == trig then
 		context.hidden = true
 		opts = command_opts
 	end
 	return s(context, t(cmd), opts)
 end
 
+---@param trig string Operator name, expanded to the same name with a backslash
 local function auto_backslash_snippet(trig)
 	return s({
 		trig = trig,
@@ -26,15 +37,30 @@ local function auto_backslash_snippet(trig)
 	}, { t("\\" .. trig), i(0) }, command_opts)
 end
 
-local function indexed_greek_snippet(trig, name, template, length)
-	return s({ trig = trig, name = name, trigEngine = "pattern", trigEngineOpts = { max_len = length }, hidden = true }, {
-		f(function (_, snip)
-			return template:format(snip.captures[1])
-		end, {})
-	}, math_opts
-	)
+-- A hidden math snippet whose text is computed from its pattern captures.
+---@param trig    string                          Lua pattern; its captures are passed to `render`
+---@param name    string
+---@param max_len integer                         Bound on the trigger length
+---@param render  fun(captures: string[]): string
+---@param context table?                          Extra context fields, such as `desc` or `wordTrig`
+local function capture_snippet(trig, name, max_len, render, context)
+	context = context or {}
+	context.trig, context.name, context.hidden = trig, name, true
+	context.trigEngine, context.trigEngineOpts = "pattern", { max_len = max_len }
+	return s(context, f(function (_, snip) return render(snip.captures) end), math_opts)
 end
 
+---@param template string Format string for the first capture
+---@return fun(captures: string[]): string
+local function formatted(template)
+	return function (captures)
+		return template:format(captures[1])
+	end
+end
+
+---@param trig    string
+---@param name    string
+---@param command string Arrow command without backslash; used as a tikzcd arrow option
 local function arrow_snippet(trig, name, command)
 	return s({ trig = trig, name = name, wordTrig = false, hidden = true }, {
 		d(1, function ()
@@ -49,140 +75,61 @@ end
 
 local autosnips = {
 	-- Algebraic notation.
-	s({
-		trig = "O([A-NP-Za-z])",
-		name = "local ring, structure sheaf",
-		wordTrig = false,
-		trigEngine = "pattern",
-		trigEngineOpts = { max_len = 2 },
-		hidden = true
-	},
-		{
-			f(function (_, snip)
-				return "\\mathcal{O}_{" .. snip.captures[1] .. "}"
-			end, {})
-		}, math_opts),
+	capture_snippet("O([A-NP-Za-z])", "local ring, structure sheaf", 2, function (captures)
+		return "\\mathcal{O}_{" .. captures[1] .. "}"
+	end, { wordTrig = false }
+	),
 
 	s({ trig = "MK", name = "Mori-Kleiman cone", hidden = true }, { t("\\cNE("), i(1), t(")") }, math_opts),
 
-	s({
-		trig = "([QRZ])P",
-		name = "positive",
-		wordTrig = false,
-		trigEngine = "pattern",
-		trigEngineOpts = { max_len = 2 },
-		hidden = true
-	},
-		{
-			f(function (_, snip)
-				return "\\mathbb{" .. snip.captures[1] .. "}^{>0}"
-			end, {})
-		}, math_opts),
+	capture_snippet("([QRZ])P", "positive", 2, function (captures)
+		return "\\mathbb{" .. captures[1] .. "}^{>0}"
+	end, { wordTrig = false }
+	),
 
-	s({
-		trig = "([QRZ])N",
-		name = "negative",
-		wordTrig = false,
-		trigEngine = "pattern",
-		trigEngineOpts = { max_len = 2 },
-		hidden = true
-	},
-		{
-			f(function (_, snip)
-				return "\\mathbb{" .. snip.captures[1] .. "}^{<0}"
-			end, {})
-		}, math_opts),
+	capture_snippet("([QRZ])N", "negative", 2, function (captures)
+		return "\\mathbb{" .. captures[1] .. "}^{<0}"
+	end, { wordTrig = false }
+	),
 
-	s({
-		trig = "([qr])le",
-		name = "linearly equivalent",
-		wordTrig = false,
-		trigEngine = "pattern",
-		trigEngineOpts = {
-			max_len = 3
-		},
-		hidden = true
-	},
-		{
-			f(function (_, snip)
-				return "\\sim_{\\mathbb{" .. string.upper(snip.captures[1]) .. "}}"
-			end, {})
-		}, math_opts),
+	capture_snippet("([qr])le", "linearly equivalent", 3, function (captures)
+		return "\\sim_{\\mathbb{" .. string.upper(captures[1]) .. "}}"
+	end, { wordTrig = false }
+	),
 
 	-- Indexed Greek letters.
 	s({ trig = "\\varpii", name = "\\varpi_i", hidden = true }, { t("\\varpi_{i}") }, math_opts),
 	s({ trig = "\\varphii", name = "\\varphi_i", hidden = true }, { t("\\varphi_{i}") }, math_opts),
-	indexed_greek_snippet("\\([xX])ii", "\\xi_{i}", "\\%si_{i}", 4),
-	indexed_greek_snippet("\\([pP])ii", "\\pi_{i}", "\\%si_{i}", 4),
-	indexed_greek_snippet("\\([pP])hii", "\\phi_{i}", "\\%shi_{i}", 5),
-	indexed_greek_snippet("\\([cC])hii", "\\chi_{i}", "\\%shi_{i}", 5),
-	indexed_greek_snippet("\\([pP])sii", "\\psi_{i}", "\\%ssi_{i}", 5),
+	capture_snippet("\\([xX])ii", "\\xi_{i}", 4, formatted("\\%si_{i}")),
+	capture_snippet("\\([pP])ii", "\\pi_{i}", 4, formatted("\\%si_{i}")),
+	capture_snippet("\\([pP])hii", "\\phi_{i}", 5, formatted("\\%shi_{i}")),
+	capture_snippet("\\([cC])hii", "\\chi_{i}", 5, formatted("\\%shi_{i}")),
+	capture_snippet("\\([pP])sii", "\\psi_{i}", 5, formatted("\\%ssi_{i}")),
 
 	-- Subscripts.
-	s({
-		trig = "(%a)(%d)",
-		name = "auto subscript 1",
-		desc = "Subscript with a single number.",
-		wordTrig = false,
-		trigEngine = "pattern",
-		trigEngineOpts = { max_len = 2 },
-		hidden = true
-	},
-		{
-			f(function (_, snip)
-				return string.format("%s_%s", snip.captures[1], snip.captures[2])
-			end, {})
-		}, math_opts),
-
-	s({
-		trig = "(%a)_(%d%d)",
-		name = "auto subscript 2",
-		desc = "Subscript with two numbers.",
-		wordTrig = false,
-		trigEngine = "pattern",
-		trigEngineOpts = { max_len = 4 },
-		hidden = true
-	},
-		{
-			f(function (_, snip)
-				return string.format("%s_{%s}", snip.captures[1], snip.captures[2])
-			end, {})
-		}, math_opts),
-
-	s({
-		trig = "(%a)ii",
-		name = "alph i",
-		wordTrig = false,
-		trigEngine = "pattern",
-		trigEngineOpts = { max_len = 3 },
-		hidden = true
-	},
-		{
-			f(function (_, snip)
-				return snip.captures[1] .. "_{i}"
-			end, {})
-		}, math_opts),
-
-	s({
-		trig = "(%a)jj",
-		name = "alph j",
-		wordTrig = false,
-		trigEngine = "pattern",
-		trigEngineOpts = { max_len = 3 },
-		hidden = true
-	},
-		{
-			f(function (_, snip)
-				return snip.captures[1] .. "_{j}"
-			end, {})
-		}, math_opts),
-
-	s({ trig = "(%a)p(%d)", name = "x[n+1]", trigEngine = "pattern", trigEngineOpts = { max_len = 3 }, hidden = true }, {
-		f(function (_, snip)
-			return snip.captures[1] .. "_{n+" .. snip.captures[2] .. "}"
-		end, {})
-	}, math_opts
+	capture_snippet("(%a)(%d)", "auto subscript 1", 2, function (captures)
+		return ("%s_%s"):format(captures[1], captures[2])
+	end, { desc = "Subscript with a single number.", wordTrig = false }
 	),
+
+	capture_snippet("(%a)_(%d%d)", "auto subscript 2", 4, function (captures)
+		return ("%s_{%s}"):format(captures[1], captures[2])
+	end, { desc = "Subscript with two numbers.", wordTrig = false }
+	),
+
+	capture_snippet("(%a)ii", "alph i", 3, function (captures)
+		return captures[1] .. "_{i}"
+	end, { wordTrig = false }
+	),
+
+	capture_snippet("(%a)jj", "alph j", 3, function (captures)
+		return captures[1] .. "_{j}"
+	end, { wordTrig = false }
+	),
+
+	capture_snippet("(%a)p(%d)", "x[n+1]", 3, function (captures)
+		return captures[1] .. "_{n+" .. captures[2] .. "}"
+	end),
 
 	s(
 		{ trig = "tss", name = "text subscript", wordTrig = false, hidden = true }, { t("_{\\mathrm{"), i(1), t("}}") },
@@ -203,111 +150,113 @@ local autosnips = {
 	arrow_snippet("emb", "embedding map arrow", "hookrightarrow")
 }
 
+-- trig = { name, command, priority? }
 local greek_specs = {
-	[";a"] = { context = { name = "α" }, command = [[\alpha]] },
-	[";b"] = { context = { name = "β" }, command = [[\beta]] },
-	[";c"] = { context = { name = "χ" }, command = [[\chi]] },
-	[";d"] = { context = { name = "δ" }, command = [[\delta]] },
-	[";e"] = { context = { name = "ε" }, command = [[\epsilon]] },
-	[";ve"] = { context = { name = "ε" }, command = [[\varepsilon]] },
-	[";f"] = { context = { name = "φ" }, command = [[\phi]] },
-	[";vf"] = { context = { name = "φ" }, command = [[\varphi]] },
-	[";g"] = { context = { name = "γ" }, command = [[\gamma]] },
-	[";h"] = { context = { name = "η" }, command = [[\eta]] },
-	[";i"] = { context = { name = "ι" }, command = [[\iota]] },
-	[";k"] = { context = { name = "κ" }, command = [[\kappa]] },
-	[";l"] = { context = { name = "λ" }, command = [[\lambda]] },
-	[";m"] = { context = { name = "μ" }, command = [[\mu]] },
-	[";n"] = { context = { name = "ν" }, command = [[\nu]] },
-	[";p"] = { context = { name = "π" }, command = [[\pi]] },
-	[";q"] = { context = { name = "θ" }, command = [[\theta]] },
-	[";r"] = { context = { name = "ρ" }, command = [[\rho]] },
-	[";s"] = { context = { name = "σ" }, command = [[\sigma]] },
-	[";t"] = { context = { name = "τ" }, command = [[\tau]] },
-	[";w"] = { context = { name = "ω" }, command = [[\omega]] },
-	[";u"] = { context = { name = "υ" }, command = [[\upsilon]] },
-	[";x"] = { context = { name = "ξ" }, command = [[\xi]] },
-	[";y"] = { context = { name = "ψ" }, command = [[\psi]] },
-	[";z"] = { context = { name = "ζ" }, command = [[\zeta]] },
-	[";D"] = { context = { name = "Δ" }, command = [[\Delta]] },
-	[";F"] = { context = { name = "Φ" }, command = [[\Phi]] },
-	[";G"] = { context = { name = "Γ" }, command = [[\Gamma]] },
-	[";L"] = { context = { name = "Λ" }, command = [[\Lambda]] },
-	[";P"] = { context = { name = "Π" }, command = [[\Pi]] },
-	[";Q"] = { context = { name = "Θ" }, command = [[\Theta]] },
-	[";S"] = { context = { name = "Σ" }, command = [[\Sigma]] },
-	[";U"] = { context = { name = "Υ" }, command = [[\Upsilon]] },
-	[";W"] = { context = { name = "Ω" }, command = [[\Omega]] },
-	[";X"] = { context = { name = "Ξ" }, command = [[\Xi]] },
-	[";Y"] = { context = { name = "Ψ" }, command = [[\Psi]] }
+	[";a"] = { "α", [[\alpha]] },
+	[";b"] = { "β", [[\beta]] },
+	[";c"] = { "χ", [[\chi]] },
+	[";d"] = { "δ", [[\delta]] },
+	[";e"] = { "ε", [[\epsilon]] },
+	[";ve"] = { "ε", [[\varepsilon]] },
+	[";f"] = { "φ", [[\phi]] },
+	[";vf"] = { "φ", [[\varphi]] },
+	[";g"] = { "γ", [[\gamma]] },
+	[";h"] = { "η", [[\eta]] },
+	[";i"] = { "ι", [[\iota]] },
+	[";k"] = { "κ", [[\kappa]] },
+	[";l"] = { "λ", [[\lambda]] },
+	[";m"] = { "μ", [[\mu]] },
+	[";n"] = { "ν", [[\nu]] },
+	[";p"] = { "π", [[\pi]] },
+	[";q"] = { "θ", [[\theta]] },
+	[";r"] = { "ρ", [[\rho]] },
+	[";s"] = { "σ", [[\sigma]] },
+	[";t"] = { "τ", [[\tau]] },
+	[";w"] = { "ω", [[\omega]] },
+	[";u"] = { "υ", [[\upsilon]] },
+	[";x"] = { "ξ", [[\xi]] },
+	[";y"] = { "ψ", [[\psi]] },
+	[";z"] = { "ζ", [[\zeta]] },
+	[";D"] = { "Δ", [[\Delta]] },
+	[";F"] = { "Φ", [[\Phi]] },
+	[";G"] = { "Γ", [[\Gamma]] },
+	[";L"] = { "Λ", [[\Lambda]] },
+	[";P"] = { "Π", [[\Pi]] },
+	[";Q"] = { "Θ", [[\Theta]] },
+	[";S"] = { "Σ", [[\Sigma]] },
+	[";U"] = { "Υ", [[\Upsilon]] },
+	[";W"] = { "Ω", [[\Omega]] },
+	[";X"] = { "Ξ", [[\Xi]] },
+	[";Y"] = { "Ψ", [[\Psi]] }
 }
 
+-- trig = { name, command, priority? }
 local symbol_specs = {
 	-- logic
-	inn = { context = { name = "∈" }, cmd = [[\in ]] },
-	["!in"] = { context = { name = "∉" }, cmd = [[\not\in ]] },
-	[";A"] = { context = { name = "∀" }, cmd = [[\forall]] },
-	[";E"] = { context = { name = "∃" }, cmd = [[\exists]] },
+	inn = { "∈", [[\in ]] },
+	["!in"] = { "∉", [[\not\in ]] },
+	[";A"] = { "∀", [[\forall]] },
+	[";E"] = { "∃", [[\exists]] },
 	-- relations and operations
-	["!="] = { context = { name = "!=" }, cmd = [[\neq ]] },
-	["<="] = { context = { name = "≤" }, cmd = [[\leq ]] },
-	[">="] = { context = { name = "≥" }, cmd = [[\geq ]] },
-	["<<"] = { context = { name = "<<" }, cmd = [[\ll ]] },
-	[">>"] = { context = { name = ">>" }, cmd = [[\gg ]] },
-	["~~"] = { context = { name = "~" }, cmd = [[\sim ]] },
-	["~="] = { context = { name = "≃" }, cmd = [[\simeq ]] },
-	["=~"] = { context = { name = "≅" }, cmd = [[\cong ]] },
-	["::"] = { context = { name = ":" }, cmd = [[\colon ]] },
-	[":="] = { context = { name = "≔" }, cmd = [[\coloneqq ]] },
-	["=:"] = { context = { name = "≔" }, cmd = [[\eqqcolon ]] },
-	["..."] = { context = { name = "·" }, cmd = [[\dots]] },
-	["||"] = { context = { name = "|" }, cmd = [[\mid ]] },
-	xx = { context = { name = "×" }, cmd = [[\times]] },
-	op = { context = { name = "⊕" }, cmd = [[\oplus]] },
-	ox = { context = { name = "⊗" }, cmd = [[\otimes]] },
-	nabl = { context = { name = "∇" }, cmd = [[\nabla]] },
-	[";="] = { context = { name = "≡" }, cmd = [[\equiv ]] },
-	[";-"] = { context = { name = "∖" }, cmd = [[\setminus ]] },
-	[";6"] = { context = { name = "∂" }, cmd = [[\partial]] },
-	[";8"] = { context = { name = "∞" }, cmd = [[\infty]] },
-	[";."] = { context = { name = "·" }, cmd = [[\cdot]] },
-	[";<"] = { context = { name = "⟨" }, cmd = [[\langle]] },
-	[";>"] = { context = { name = "⟩" }, cmd = [[\rangle]] },
+	["!="] = { "!=", [[\neq ]] },
+	["<="] = { "≤", [[\leq ]] },
+	[">="] = { "≥", [[\geq ]] },
+	["<<"] = { "<<", [[\ll ]] },
+	[">>"] = { ">>", [[\gg ]] },
+	["~~"] = { "~", [[\sim ]] },
+	["~="] = { "≃", [[\simeq ]] },
+	["=~"] = { "≅", [[\cong ]] },
+	["::"] = { ":", [[\colon ]] },
+	[":="] = { "≔", [[\coloneqq ]] },
+	["=:"] = { "≔", [[\eqqcolon ]] },
+	["..."] = { "·", [[\dots]] },
+	["||"] = { "|", [[\mid ]] },
+	xx = { "×", [[\times]] },
+	op = { "⊕", [[\oplus]] },
+	ox = { "⊗", [[\otimes]] },
+	nabl = { "∇", [[\nabla]] },
+	[";="] = { "≡", [[\equiv ]] },
+	[";-"] = { "∖", [[\setminus ]] },
+	[";6"] = { "∂", [[\partial]] },
+	[";8"] = { "∞", [[\infty]] },
+	[";."] = { "·", [[\cdot]] },
+	[";<"] = { "⟨", [[\langle]] },
+	[";>"] = { "⟩", [[\rangle]] },
 	-- number systems and sets
-	AA = { context = { name = "𝔸" }, cmd = [[\mathbb{A}]] },
-	CC = { context = { name = "ℂ" }, cmd = [[\mathbb{C}]] },
-	DD = { context = { name = "𝔻" }, cmd = [[\mathbb{D}]] },
-	FF = { context = { name = "𝔽" }, cmd = [[\mathbb{F}]] },
-	GG = { context = { name = "𝔾" }, cmd = [[\mathbb{G}]] },
-	HH = { context = { name = "ℍ" }, cmd = [[\mathbb{H}]] },
-	NN = { context = { name = "ℕ" }, cmd = [[\mathbb{N}]] },
-	OO = { context = { name = "O" }, cmd = [[\mathcal{O}]] },
-	PP = { context = { name = "ℙ" }, cmd = [[\mathbb{P}]] },
-	QQ = { context = { name = "ℚ" }, cmd = [[\mathbb{Q}]] },
-	RR = { context = { name = "ℝ" }, cmd = [[\mathbb{R}]] },
-	ZZ = { context = { name = "ℤ" }, cmd = [[\mathbb{Z}]] },
-	cc = { context = { name = "⊂" }, cmd = [[\subset ]] },
-	cq = { context = { name = "⊆" }, cmd = [[\subseteq ]] },
-	qq = { context = { name = "⊃" }, cmd = [[\supset ]] },
-	qc = { context = { name = "⊇" }, cmd = [[\supseteq ]] },
-	Nn = { context = { name = "∩" }, cmd = [[\cap ]] },
-	UU = { context = { name = "∪" }, cmd = [[\cup]] },
-	[";0"] = { context = { name = "∅" }, cmd = [[\emptyset]] },
+	AA = { "𝔸", [[\mathbb{A}]] },
+	CC = { "ℂ", [[\mathbb{C}]] },
+	DD = { "𝔻", [[\mathbb{D}]] },
+	FF = { "𝔽", [[\mathbb{F}]] },
+	GG = { "𝔾", [[\mathbb{G}]] },
+	HH = { "ℍ", [[\mathbb{H}]] },
+	NN = { "ℕ", [[\mathbb{N}]] },
+	OO = { "O", [[\mathcal{O}]] },
+	PP = { "ℙ", [[\mathbb{P}]] },
+	QQ = { "ℚ", [[\mathbb{Q}]] },
+	RR = { "ℝ", [[\mathbb{R}]] },
+	ZZ = { "ℤ", [[\mathbb{Z}]] },
+	cc = { "⊂", [[\subset ]] },
+	cq = { "⊆", [[\subseteq ]] },
+	qq = { "⊃", [[\supset ]] },
+	qc = { "⊇", [[\supseteq ]] },
+	Nn = { "∩", [[\cap ]] },
+	UU = { "∪", [[\cup]] },
+	[";0"] = { "∅", [[\emptyset]] },
 	-- arrows
-	["=>"] = { context = { name = "⇒" }, cmd = [[\implies]] },
-	["=<"] = { context = { name = "⇐" }, cmd = [[\impliedby]] },
-	["->"] = { context = { name = "→", priority = 250 }, cmd = [[\to ]] },
-	["!>"] = { context = { name = "↦" }, cmd = [[\mapsto ]] },
-	["-->"] = { context = { name = "⟶", priority = 500 }, cmd = [[\longrightarrow ]] },
-	["<->"] = { context = { name = "↔", priority = 500 }, cmd = [[\leftrightarrow ]] },
-	["2>"] = { context = { name = "⇉", priority = 400 }, cmd = [[\rightrightarrows ]] },
-	iff = { context = { name = "⟺" }, cmd = [[\iff ]] },
-	upar = { context = { name = "↑" }, cmd = [[\uparrow]] },
-	dnar = { context = { name = "↓" }, cmd = [[\downarrow]] },
+	["=>"] = { "⇒", [[\implies]] },
+	["=<"] = { "⇐", [[\impliedby]] },
+	["->"] = { "→", [[\to ]], 250 },
+	["!>"] = { "↦", [[\mapsto ]] },
+	["-->"] = { "⟶", [[\longrightarrow ]], 500 },
+	["<->"] = { "↔", [[\leftrightarrow ]], 500 },
+	["2>"] = { "⇉", [[\rightrightarrows ]], 400 },
+	iff = { "⟺", [[\iff ]] },
+	upar = { "↑", [[\uparrow]] },
+	dnar = { "↓", [[\downarrow]] },
 	-- spacing and other symbols
-	dag = { context = { name = "†" }, cmd = [[\dagger]] },
-	lll = { context = { name = "ℓ" }, cmd = [[\ell]] },
-	quad = { context = { name = " " }, cmd = [[\quad ]] }
+	dag = { "†", [[\dagger]] },
+	lll = { "ℓ", [[\ell]] },
+	quad = { " ", [[\quad ]] }
 }
 
 local operator_specs = {
@@ -315,14 +264,10 @@ local operator_specs = {
 	"int", "ker", "log", "max", "min", "perp", "sec", "sin", "star", "tan", "Gr", "Quot"
 }
 
-for trig, spec in pairs(greek_specs) do
-	local context = vim.tbl_deep_extend("keep", { trig = trig }, spec.context)
-	table.insert(autosnips, symbol_snippet(context, spec.command))
-end
-
-for trig, spec in pairs(symbol_specs) do
-	local context = vim.tbl_deep_extend("keep", { trig = trig }, spec.context)
-	table.insert(autosnips, symbol_snippet(context, spec.cmd))
+for _, specs in ipairs({ greek_specs, symbol_specs }) do
+	for trig, spec in pairs(specs) do
+		table.insert(autosnips, symbol_snippet(trig, spec[1], spec[2], spec[3]))
+	end
 end
 
 for _, trig in ipairs(operator_specs) do

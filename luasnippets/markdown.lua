@@ -3,12 +3,18 @@ local conditions = require("math-snippets.conditions")
 
 local opts = { condition = expand_line_begin, show_condition = conditions.show_line_begin }
 
+-- `#3` -> `### ` at the start of a line.
+---@param _    string[]
+---@param snip table    LuaSnip snippet whose first capture is the heading level
+---@return string
+local function heading(_, snip)
+	return string.rep("#", tonumber(snip.captures[1], 10)) .. " "
+end
+
 local snips = {
-	s({ trig = "#([2-6])", name = "Heading", desc = "Add Heading", trigEngine = "pattern", hidden = true }, {
-		f(function (_, snip)
-			return string.rep("#", tonumber(snip.captures[1], 10)) .. " "
-		end)
-	}, opts
+	s(
+		{ trig = "#([2-6])", name = "Heading", desc = "Add Heading", trigEngine = "pattern", hidden = true }, f(heading),
+		opts
 	),
 
 	s(

@@ -27,10 +27,11 @@ local function phrase_snippet(trig, body)
 end
 
 -- `qc` -> `\(\mathbb{Q}\)-Cartier`; the captured letter picks the number field.
+-- Hidden: a completion menu would list the raw pattern and expand it without captures.
 ---@param trig string Lua pattern capturing `q` or `r`
 ---@param name string
 local function rational_phrase_snippet(trig, name)
-	return s({ trig = trig, name = name, trigEngine = pattern, trigEngineOpts = { max_len = 2 } }, {
+	return s({ trig = trig, name = name, trigEngine = pattern, trigEngineOpts = { max_len = 2 }, hidden = true }, {
 		f(function (_, snip)
 			return "\\(\\mathbb{" .. snip.captures[1]:upper() .. "}\\)-" .. name
 		end)
@@ -96,7 +97,8 @@ local autosnips = {
 		trig = "([wW])log",
 		name = "without loss of generality",
 		trigEngine = pattern,
-		trigEngineOpts = { max_len = 4 }
+		trigEngineOpts = { max_len = 4 },
+		hidden = true
 	},
 		{
 			f(function (_, snip)

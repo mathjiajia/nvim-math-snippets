@@ -1,3 +1,4 @@
+local pattern = require("math-snippets.triggers").pattern
 local tex = require("math-snippets.latex")
 local not_after_backslash = require("luasnip.extras.conditions.expand").trigger_not_preceded_by("\\")
 
@@ -46,7 +47,7 @@ end
 local function capture_snippet(trig, name, max_len, render, context)
 	context = context or {}
 	context.trig, context.name, context.hidden = trig, name, true
-	context.trigEngine, context.trigEngineOpts = "pattern", { max_len = max_len }
+	context.trigEngine, context.trigEngineOpts = pattern, { max_len = max_len }
 	return s(context, f(function (_, snip) return render(snip.captures) end), math_opts)
 end
 

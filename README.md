@@ -45,9 +45,12 @@ visual-selection snippets, while `inline_math.lua` owns the whitespace trigger
 engine and spacing callbacks. Imports are grouped at each file's top; optional
 Blink completion is loaded only when entering a reference.
 
-LuaSnip loads these files directly. Shared context detection lives in
-`lua/math-snippets/`; the visual-selection helper is local to `expressions.lua`.
-Command guards check for an existing backslash before checking math context.
+LuaSnip loads these files directly. Shared context detection and pattern trigger
+matching live in `lua/math-snippets/`; the visual-selection helper is local to
+`expressions.lua`. Pattern triggers prepare their end anchor once and allocate
+capture tables only on a match. The inline-math rules share a scan of the last
+token and its trailing whitespace. Command guards check for an existing backslash
+before checking math context.
 
 ## General conditions
 
@@ -97,8 +100,11 @@ Closing a text argument resumes the enclosing math scope; closing a formula or
 environment leaves its scope immediately.
 
 Detection uses Neovim's native [Tree-sitter API][treesitter-api], with synchronous
-parsing of the cursor line's injections and one shared result per buffer change
-and cursor position.
+parsing and one shared result per buffer change and cursor position. With active
+Tree-sitter highlighting, parsing covers the visible ranges of every window
+showing the buffer in the current tab, plus the cursor line. This preserves the
+injected trees needed for highlighting. Without a highlighter, only the cursor
+line's injections are requested.
 No active highlighter is needed for the LaTeX conditions.
 LaTeX injected into Markdown works when the host parsers and injection queries
 are installed; the host buffer is never forced through the LaTeX parser.
@@ -130,10 +136,13 @@ heuristics, which can be adjusted in `lua/math-snippets/latex.lua` if needed.
 `require("math-snippets.latex").in_beamer`, used by `bfr` and `bbl`, checks the
 first `\documentclass` declaration in the current buffer. Detection uses the
 LaTeX Tree-sitter parser, supports multiline
-declarations and options, and ignores commented-out declarations. Results are
-cached per buffer until its text changes or its parser is invalidated. Unloading
-a buffer clears its cache entry. Unexpected detection failures warn once and
-remain retryable without editing the buffer.
+declarations and options, and ignores commented-out declarations. Buffers without
+the literal `\documentclass` command skip parsing and the query; possible matches
+still use Tree-sitter, including declarations nested inside command arguments.
+Results are cached per buffer until its text changes. Results obtained by parsing
+also expire when the parser is invalidated. Unloading a buffer clears its cache
+entry. Unexpected detection failures warn once and remain retryable without
+editing the buffer.
 
 For an included file or a custom class, set a buffer-local override:
 
@@ -146,8 +155,8 @@ vim.b.math_snippets_beamer = nil    -- Use automatic detection
 Without an override, an unavailable parser or absent class declaration returns
 false. Automatic detection only runs when the buffer's filetype maps to `latex`;
 other buffers keep their host parser. It examines the current buffer and does not
-expand TeX macros or resolve class inheritance. Declarations nested inside command
-arguments are still considered in source order.
+expand TeX macros or resolve class inheritance. The first declaration in source
+order determines the class.
 
 ## Tests
 

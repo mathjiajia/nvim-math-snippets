@@ -1,3 +1,4 @@
+local pattern = require("math-snippets.triggers").pattern
 local tex = require("math-snippets.latex")
 local conditions = require("math-snippets.conditions")
 local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
@@ -125,7 +126,7 @@ local snips = {
 		trig = "([bBpvV])mat_(%d+)x_(%d+)([ar])",
 		name = "[bBpvV]matrix",
 		desc = "matrices",
-		trigEngine = "pattern",
+		trigEngine = pattern,
 		hidden = true
 	},
 		fmta([[
@@ -269,7 +270,7 @@ local autosnips = {
 		trig = "(%d?)cases",
 		name = "cases",
 		desc = "cases",
-		trigEngine = "pattern",
+		trigEngine = pattern,
 		trigEngineOpts = { max_len = 6 },
 		hidden = true
 	}, fmta([[

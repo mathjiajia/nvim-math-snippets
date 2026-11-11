@@ -1,3 +1,4 @@
+local pattern = require("math-snippets.triggers").pattern
 local tex = require("math-snippets.latex")
 local not_after_backslash = require("luasnip.extras.conditions.expand").trigger_not_preceded_by("\\")
 
@@ -40,7 +41,7 @@ local function bracket_snippet(trig, name, template)
 		trig = trig .. "([aAbBcmpv])",
 		name = name,
 		desc = name .. " delimiters",
-		trigEngine = "pattern",
+		trigEngine = pattern,
 		trigEngineOpts = { max_len = #trig + 1 },
 		hidden = true,
 		condition = tex.in_math,
@@ -77,7 +78,7 @@ end
 ---@param length integer Bound on the trigger length
 local function cohomology_snippet(trig, name, length)
 	return s(
-		{ trig = trig, name = name, trigEngine = "pattern", trigEngineOpts = { max_len = length }, hidden = true },
+		{ trig = trig, name = name, trigEngine = pattern, trigEngineOpts = { max_len = length }, hidden = true },
 		fmta([[<><>)]], { f(cohomology_prefix), i(1) }), math_opts
 	)
 end

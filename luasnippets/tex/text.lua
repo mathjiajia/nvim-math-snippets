@@ -1,3 +1,4 @@
+local pattern = require("math-snippets.triggers").pattern
 local tex = require("math-snippets.latex")
 local conditions = require("math-snippets.conditions")
 local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
@@ -29,7 +30,7 @@ end
 ---@param trig string Lua pattern capturing `q` or `r`
 ---@param name string
 local function rational_phrase_snippet(trig, name)
-	return s({ trig = trig, name = name, trigEngine = "pattern", trigEngineOpts = { max_len = 2 } }, {
+	return s({ trig = trig, name = name, trigEngine = pattern, trigEngineOpts = { max_len = 2 } }, {
 		f(function (_, snip)
 			return "\\(\\mathbb{" .. snip.captures[1]:upper() .. "}\\)-" .. name
 		end)
@@ -64,7 +65,7 @@ local autosnips = {
 		trig = "([arz])ref",
 		name = "(arz)?ref",
 		desc = "add a reference (with autoref, zcref)",
-		trigEngine = "pattern",
+		trigEngine = pattern,
 		trigEngineOpts = { max_len = 4 },
 		hidden = true
 	}, fmta([[\<>ref{<>}<>]], { f(reference_prefix), i(1), i(0) }), text_opts),
@@ -94,7 +95,7 @@ local autosnips = {
 	s({
 		trig = "([wW])log",
 		name = "without loss of generality",
-		trigEngine = "pattern",
+		trigEngine = pattern,
 		trigEngineOpts = { max_len = 4 }
 	},
 		{

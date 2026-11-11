@@ -1,3 +1,4 @@
+local pattern = require("math-snippets.triggers").pattern
 local expand_line_begin = require("luasnip.extras.conditions.expand").line_begin
 local conditions = require("math-snippets.conditions")
 
@@ -13,7 +14,14 @@ end
 
 local snips = {
 	s(
-		{ trig = "#([2-6])", name = "Heading", desc = "Add Heading", trigEngine = "pattern", hidden = true }, f(heading),
+		{
+			trig = "#([2-6])",
+			name = "Heading",
+			desc = "Add Heading",
+			trigEngine = pattern,
+			trigEngineOpts = { max_len = 2 },
+			hidden = true
+		}, f(heading),
 		opts
 	),
 

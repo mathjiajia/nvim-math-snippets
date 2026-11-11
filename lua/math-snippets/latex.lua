@@ -283,15 +283,49 @@ local function classify(node, bufnr, row, col)
 	return bullets and BULLETS or EMPTY
 end
 
+-- Partial parses replace injection regions. Match the highlighter's current-tab
+-- window ranges so a condition does not evict trees needed by the next redraw.
+-- Include the cursor row in case the window has not scrolled to it yet.
+---@param bufnr integer
+---@param row integer
+---@return [integer, integer] | [integer, integer][]
+local function context_ranges(bufnr, row)
+	local cursor_range = { row, row + 1 }
+	if not ts.highlighter.active[bufnr] then
+		return cursor_range
+	end
+	local ranges = { cursor_range }
+	for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
+		if api.nvim_win_get_buf(win) == bufnr then
+			ranges[#ranges + 1] = { vim.fn.line("w0", win) - 1, vim.fn.line("w$", win) + 1 }
+		end
+	end
+	table.sort(ranges, function (a, b) return a[1] < b[1] end)
+	-- Merge overlapping windows to avoid querying their injections twice.
+	local count = 1
+	for index = 2, #ranges do
+		local previous, current = ranges[count], ranges[index]
+		if current[1] <= previous[2] then
+			previous[2] = math.max(previous[2], current[2])
+		else
+			count = count + 1
+			ranges[count] = current
+		end
+	end
+	for index = #ranges, count + 1, -1 do
+		ranges[index] = nil
+	end
+	return count == 1 and ranges[1] or ranges
+end
+
 ---@param parser vim.treesitter.LanguageTree
 ---@param bufnr  integer
 ---@param row    integer
 ---@param col    integer
----@param range  [integer, integer]
+---@param range  [integer, integer] | [integer, integer][]
 ---@return math_snippets.Context
 local function parse_context(parser, bufnr, row, col, range)
-	-- Parse synchronously without a highlighter; limit injections to the cursor line.
-	-- TeX buffers may also contain custom injections, so preserve language boundaries.
+	-- Parse synchronously, including custom injections that override LaTeX context.
 	parser:parse(range)
 	local left = math.max(col - 1, 0)
 	local point = { row, left, row, left }
@@ -325,7 +359,7 @@ end
 ---@field row     integer?
 ---@field col     integer?
 ---@field parser  vim.treesitter.LanguageTree?
----@field range   [integer, integer]?
+---@field range   ([integer, integer] | [integer, integer][])?
 ---@field context math_snippets.Context?
 local cache = {}
 local filetype_opts = { buf = 0 }
@@ -353,7 +387,7 @@ local function get_context()
 		return cache.context
 	end
 
-	local range = { row, row + 1 }
+	local range = context_ranges(bufnr, row)
 	local parsed, context = pcall(parse_context, parser, bufnr, row, col, range)
 	if not parsed then
 		vim.notify_once("nvim-math-snippets: context detection failed: " .. tostring(context), vim.log.levels.WARN)
@@ -367,7 +401,7 @@ end
 
 ---@type vim.treesitter.Query?
 local beamer_query
----@type table<integer, { tick: integer, parser: vim.treesitter.LanguageTree, result: boolean }>
+---@type table<integer, { tick: integer, parser: vim.treesitter.LanguageTree, result: boolean, no_class: boolean }>
 local beamer_cache = {}
 
 api.nvim_create_autocmd("BufUnload", {
@@ -377,6 +411,23 @@ api.nvim_create_autocmd("BufUnload", {
 	end,
 	desc = "Clear cached Beamer detection for unloaded buffers"
 })
+
+-- A class node always contains this literal command. Reject classless chapter
+-- files before parsing; comments and verbatim matches still go through the query.
+-- Read in chunks so an ordinary preamble does not copy the whole buffer.
+---@param bufnr integer
+---@return boolean
+local function has_class_command(bufnr)
+	local count = api.nvim_buf_line_count(bufnr)
+	for first = 0, count - 1, 128 do
+		for _, line in ipairs(api.nvim_buf_get_lines(bufnr, first, math.min(first + 128, count), false)) do
+			if line:find("\\documentclass", 1, true) then
+				return true
+			end
+		end
+	end
+	return false
+end
 
 ---@param parser vim.treesitter.LanguageTree
 ---@param bufnr  integer
@@ -418,15 +469,20 @@ local function in_beamer()
 	local tick = api.nvim_buf_get_changedtick(bufnr)
 	local entry = beamer_cache[bufnr]
 	-- Explicit parser invalidation need not change the buffer tick.
-	if entry and entry.tick == tick and entry.parser == parser and parser:is_valid(true) then
+	if entry and entry.tick == tick and entry.parser == parser and (entry.no_class or parser:is_valid(true)) then
 		return entry.result
+	end
+	if not has_class_command(bufnr) then
+		-- This negative result depends only on the text, not parser validity.
+		beamer_cache[bufnr] = { tick = tick, parser = parser, result = false, no_class = true }
+		return false
 	end
 	local ok, result = pcall(detect_beamer, parser, bufnr)
 	if not ok then
 		vim.notify_once("nvim-math-snippets: Beamer detection failed: " .. tostring(result), vim.log.levels.WARN)
 		return false
 	end
-	beamer_cache[bufnr] = { tick = tick, parser = parser, result = result }
+	beamer_cache[bufnr] = { tick = tick, parser = parser, result = result, no_class = false }
 	return result
 end
 

@@ -46,6 +46,35 @@ local function captures_of(from, _, ...)
 	end
 end
 
+-- All three rules inspect the same suffix. Retain only the last input and tail;
+-- matching depends on the string alone, so edits and buffer switches stay safe.
+local previous_line, previous_tail
+
+---@param line_to_cursor string
+---@return string?
+local function whitespace_tail(line_to_cursor)
+	if line_to_cursor == previous_line then
+		return previous_tail
+	end
+	previous_line, previous_tail = line_to_cursor, nil
+	local last = #line_to_cursor
+	local token_end = last
+	while token_end > 0 and SPACE[line_to_cursor:byte(token_end)] do
+		token_end = token_end - 1
+	end
+	if token_end == last then
+		return nil
+	end
+	local space = token_end
+	while space > 0 and not SPACE[line_to_cursor:byte(space)] do
+		space = space - 1
+	end
+	if space > 0 then
+		previous_tail = line_to_cursor:sub(space)
+	end
+	return previous_tail
+end
+
 -- Trigger engine for patterns shaped `(%s)<token>(%s+)`, where `<token>` matches no
 -- whitespace. Such a match can only start at the whitespace before the last
 -- token, so only that tail is matched instead of scanning the whole line for a
@@ -55,25 +84,11 @@ end
 ---@return fun(line_to_cursor: string): string?, string[]?
 local function whitespace_pattern(trig)
 	local anchored = "^" .. trig .. "$"
-	local byte = string.byte
 	return function (line_to_cursor)
-		local last = #line_to_cursor
-		local token_end = last
-		while token_end > 0 and SPACE[byte(line_to_cursor, token_end)] do
-			token_end = token_end - 1
-		end
-		-- All automatic inline-math patterns require trailing whitespace.
-		if token_end == last then
+		local tail = whitespace_tail(line_to_cursor)
+		if not tail then
 			return nil
 		end
-		local space = token_end
-		while space > 0 and not SPACE[byte(line_to_cursor, space)] do
-			space = space - 1
-		end
-		if space == 0 then
-			return nil
-		end
-		local tail = line_to_cursor:sub(space)
 		local captures = captures_of(tail:find(anchored))
 		if captures then
 			return tail, captures

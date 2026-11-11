@@ -16,11 +16,13 @@ local mkcond = require("luasnip.extras.conditions").make_condition
 local function in_comments()
 	local bufnr = api.nvim_get_current_buf()
 	local cursor = api.nvim_win_get_cursor(0)
-	local captures = vim.treesitter.get_captures(bufnr, { cursor[1] - 1, cursor[2] - 1 })
+	local row, col = cursor[1] - 1, cursor[2]
+	local captures = vim.treesitter.get_captures(bufnr, { row, math.max(col - 1, 0) })
 
 	for _, capture in ipairs(captures) do
 		local name = capture.capture
-		if name == "comment" or name:find("comment.", 1, true) == 1 then
+		-- At column zero, only a comment continuing from an earlier row is in scope.
+		if (col > 0 or capture.row < row) and (name == "comment" or name:find("comment.", 1, true) == 1) then
 			return true
 		end
 	end

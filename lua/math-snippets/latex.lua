@@ -14,7 +14,7 @@ local function node_text(node, bufnr)
 		-- Native extraction normalizes recovered nodes ending immediately after EOF.
 		return ts.get_node_text(node, bufnr)
 	end
-	local lines = api.nvim_buf_get_text(bufnr, start_row, start_col, end_row, end_col, {})
+	local lines = api.nvim_buf_get_text(bufnr, start_row, start_col, end_row, end_col)
 	return lines[2] and table.concat(lines, "\n") or lines[1] or ""
 end
 
@@ -194,13 +194,35 @@ local function node_math_mode(node, kind, math_node, env, command, row, col)
 	end
 end
 
--- Walk the ancestors of the cursor node; the nearest mode switch wins.
+-- Descend once instead of restarting from the root for every parent() call.
+-- Keep the path local so cached contexts do not retain nodes from old trees.
+---@param node TSNode
+---@return TSNode[]
+local function ancestor_path(node)
+	local path = {}
+	local current = node:tree():root()
+	while current do
+		path[#path + 1] = current
+		-- Stop at the exact node: a child can share its entire byte range.
+		if current == node then
+			return path
+		end
+		current = current:child_with_descendant(node)
+	end
+	path[#path + 1] = node
+	return path
+end
+
+-- Visit the cursor node and its ancestors; the nearest mode switch wins.
 ---@param node  TSNode?
 ---@param bufnr integer
 ---@param row   integer
 ---@param col   integer
 ---@return math_snippets.Context
 local function classify(node, bufnr, row, col)
+	if not node then
+		return EMPTY
+	end
 	-- nil: no mode found yet; false: text; true: math.
 	---@type boolean?
 	local math_mode
@@ -210,7 +232,9 @@ local function classify(node, bufnr, row, col)
 	local bullets = false
 	---@type TSNode?
 	local child
-	while node do
+	local path = ancestor_path(node)
+	for depth = #path, 1, -1 do
+		node = path[depth]
 		local kind = node:type()
 		local flags = NODE_TYPES[kind]
 		if flags and in_scope(node, row, col, kind) then
@@ -250,7 +274,7 @@ local function classify(node, bufnr, row, col)
 				end
 			end
 		end
-		child, node = node, node:parent()
+		child = node
 	end
 	if math_mode then
 		-- Explicit math nested inside an alignment establishes its own scope.
@@ -272,7 +296,7 @@ local function parse_context(parser, bufnr, row, col, range)
 	local left = math.max(col - 1, 0)
 	local point = { row, left, row, left }
 	local language_tree = parser:language_for_range(point)
-	local node = language_tree:node_for_range(point, { ignore_injections = true })
+	local node = language_tree:node_for_range(point)
 	-- At column zero, inserting before an injected comment belongs to its
 	-- parent language. Do not mistake the right-hand injection for context.
 	while col == 0 and node and language_tree:lang() ~= "latex" do
@@ -285,7 +309,7 @@ local function parse_context(parser, bufnr, row, col, range)
 			break
 		end
 		language_tree = parent
-		node = language_tree:node_for_range(point, { ignore_injections = true })
+		node = language_tree:node_for_range(point)
 	end
 	if language_tree:lang() ~= "latex" then
 		return EMPTY
@@ -381,6 +405,11 @@ local function in_beamer()
 	local override = vim.b[bufnr].math_snippets_beamer
 	if type(override) == "boolean" then
 		return override
+	end
+	-- Requesting LaTeX in a host buffer would replace its registered root parser.
+	filetype_opts.buf = bufnr
+	if ts.language.get_lang(api.nvim_get_option_value("filetype", filetype_opts)) ~= "latex" then
+		return false
 	end
 	local parser = ts.get_parser(bufnr, "latex")
 	if not parser then

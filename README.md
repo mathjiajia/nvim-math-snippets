@@ -144,10 +144,19 @@ vim.b.math_snippets_beamer = nil    -- Use automatic detection
 ```
 
 Without an override, an unavailable parser or absent class declaration returns
-false. Automatic detection examines the current buffer and does not expand TeX
-macros or resolve class inheritance.
+false. Automatic detection only runs when the buffer's filetype maps to `latex`;
+other buffers keep their host parser. It examines the current buffer and does not
+expand TeX macros or resolve class inheritance. Declarations nested inside command
+arguments are still considered in source order.
 
 ## Tests
+
+The test harness is kept locally in the Git-ignored `tests/` directory. If it is
+missing, restore the historical suites from this repository's history:
+
+```sh
+git archive 27ff3dc tests | tar -x
+```
 
 Run all correctness suites from the repository root with LuaSnip and the
 LaTeX/Lua/Markdown parsers and queries installed:

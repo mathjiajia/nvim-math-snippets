@@ -35,11 +35,18 @@ local function on_top()
 	return api.nvim_win_get_cursor(0)[1] <= 3
 end
 
+-- A completion request passes the same text to every line-start snippet.
+local previous_line, at_line_begin = "", true
+
 --- Show line-start snippets while typing the first word, allowing indentation.
 ---@param line_to_cursor string
 ---@return boolean
 local function show_line_begin(line_to_cursor)
-	return line_to_cursor:find("^%s*%S*$") ~= nil
+	if line_to_cursor ~= previous_line then
+		at_line_begin = line_to_cursor:find("^%s*%S*$") ~= nil
+		previous_line = line_to_cursor
+	end
+	return at_line_begin
 end
 
 ---@class math_snippets.Conditions

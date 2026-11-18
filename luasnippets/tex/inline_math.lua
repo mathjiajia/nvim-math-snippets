@@ -36,13 +36,14 @@ for byte = 0, 255 do
 	SPACE[byte] = string.char(byte):find("^%s") ~= nil
 end
 
+---@param tail string
 ---@param from integer?
 ---@param _    integer?
 ---@param ...  string
----@return string[]?
-local function captures_of(from, _, ...)
+---@return string?, string[]?
+local function matched(tail, from, _, ...)
 	if from then
-		return { ... }
+		return tail, { ... }
 	end
 end
 
@@ -86,14 +87,9 @@ local function whitespace_pattern(trig)
 	local anchored = "^" .. trig .. "$"
 	return function (line_to_cursor)
 		local tail = whitespace_tail(line_to_cursor)
-		if not tail then
-			return nil
+		if tail then
+			return matched(tail, tail:find(anchored))
 		end
-		local captures = captures_of(tail:find(anchored))
-		if captures then
-			return tail, captures
-		end
-		return nil
 	end
 end
 

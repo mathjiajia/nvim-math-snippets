@@ -36,8 +36,13 @@ local function env_snippet(trig, env)
 			]], { t(env), i(0), t(env) }), env_opts)
 end
 
--- The title is slugified for the \zlabel. Lambda expressions are single-use
--- in LuaSnip (instantiation rewrites them), so each snippet builds its own.
+-- The title in node 1, slugified for the \zlabel. Lambda expressions are
+-- single-use in LuaSnip (instantiation rewrites them), so build one per snippet.
+-- Runs of non-word bytes collapse to one `_`, so at most one trails.
+local function title_slug()
+	return l(l._1:gsub("[^%w]+", "_"):gsub("_$", ""):lower(), 1)
+end
+
 ---@param trig string Also used as the label prefix
 ---@param env  string Environment name
 local function labeled_env_snippet(trig, env)
@@ -49,7 +54,7 @@ local function labeled_env_snippet(trig, env)
 			\begin{<>}[<>]\zlabel{<>:<>}
 				<>
 			\end{<>}
-			]], { t(env), i(1), t(trig), l(l._1:gsub("[^%w]+", "_"):gsub("_$", ""):lower(), 1), i(0), t(env) }
+			]], { t(env), i(1), t(trig), title_slug(), i(0), t(env) }
 		), env_opts
 	)
 end
@@ -65,7 +70,7 @@ local function sec_snippet(trig, name)
 			\<>{<>}\zlabel{<>:<>}
 
 			<>
-			]], { t(name), i(1), t(trig), l(l._1:gsub("[^%w]+", "_"):gsub("_*$", ""):lower(), 1), i(0) }
+			]], { t(name), i(1), t(trig), title_slug(), i(0) }
 		), env_opts
 	)
 end

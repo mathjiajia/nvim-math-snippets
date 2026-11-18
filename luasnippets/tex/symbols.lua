@@ -1,42 +1,7 @@
 local pattern = require("math-snippets.triggers").pattern
 local tex = require("math-snippets.latex")
-local not_after_backslash = require("luasnip.extras.conditions.expand").trigger_not_preceded_by("\\")
 
 local math_opts = { condition = tex.in_math, show_condition = tex.in_math }
--- Commands typed without their backslash must not expand after an existing one.
-local command_opts = { condition = not_after_backslash * tex.in_math, show_condition = tex.in_math }
-
--- A symbol whose trigger is the command's own name is hidden from completion.
----@param trig     string
----@param name     string
----@param cmd      string   Command including its backslash
----@param priority integer?
-local function symbol_snippet(trig, name, cmd, priority)
-	local context = {
-		trig = trig,
-		name = name,
-		desc = cmd,
-		docstring = cmd .. [[{0}]],
-		wordTrig = false,
-		priority = priority
-	}
-	local opts = math_opts
-	if cmd:sub(2, #trig + 1) == trig then
-		context.hidden = true
-		opts = command_opts
-	end
-	return s(context, t(cmd), opts)
-end
-
----@param trig string Operator name, expanded to the same name with a backslash
-local function auto_backslash_snippet(trig)
-	return s({
-		trig = trig,
-		name = trig,
-		desc = trig .. " with automatic backslash",
-		docstring = "\\" .. trig
-	}, { t("\\" .. trig), i(0) }, command_opts)
-end
 
 -- A hidden math snippet whose text is computed from its pattern captures.
 ---@param trig    string                          Lua pattern; its captures are passed to `render`
@@ -145,119 +110,121 @@ local autosnips = {
 	s({ trig = "**", name = "*", desc = "^{*}", docstring = "^{*}{0}", wordTrig = false }, t("^{*}"), math_opts),
 	s({ trig = "nvs", name = "-1", desc = "^{-1}", docstring = "^{-1}{0}", wordTrig = false }, t("^{-1}"), math_opts),
 
+	-- LuaSnip assigns priority per snippet. Keep these arrows individually overridable.
+	s({ trig = "->", name = "→", priority = 250, wordTrig = false, hidden = true }, t([[\to ]]), math_opts),
+	s({ trig = "2>", name = "⇉", priority = 400, wordTrig = false, hidden = true }, t([[\rightrightarrows ]]), math_opts),
+	s({ trig = "-->", name = "⟶", priority = 500, wordTrig = false, hidden = true }, t([[\longrightarrow ]]), math_opts),
+	s({ trig = "<->", name = "↔", priority = 500, wordTrig = false, hidden = true }, t([[\leftrightarrow ]]), math_opts),
+
 	-- Arrows that adapt to a tikzcd environment.
 	s({ trig = "ar", name = "normal arrows", hidden = true }, { t("\\ar["), i(1), t("]") }, { condition = tex.in_tikzcd }),
 	arrow_snippet("rmap", "rational map arrow", "dashrightarrow"),
 	arrow_snippet("emb", "embedding map arrow", "hookrightarrow")
 }
 
--- trig = { name, command, priority? }
+-- Fixed symbols, all expanded by the `symbols` snippet below. trig = command
 local greek_specs = {
-	[";a"] = { "α", [[\alpha]] },
-	[";b"] = { "β", [[\beta]] },
-	[";c"] = { "χ", [[\chi]] },
-	[";d"] = { "δ", [[\delta]] },
-	[";e"] = { "ε", [[\epsilon]] },
-	[";ve"] = { "ε", [[\varepsilon]] },
-	[";f"] = { "φ", [[\phi]] },
-	[";vf"] = { "φ", [[\varphi]] },
-	[";g"] = { "γ", [[\gamma]] },
-	[";h"] = { "η", [[\eta]] },
-	[";i"] = { "ι", [[\iota]] },
-	[";k"] = { "κ", [[\kappa]] },
-	[";l"] = { "λ", [[\lambda]] },
-	[";m"] = { "μ", [[\mu]] },
-	[";n"] = { "ν", [[\nu]] },
-	[";p"] = { "π", [[\pi]] },
-	[";q"] = { "θ", [[\theta]] },
-	[";r"] = { "ρ", [[\rho]] },
-	[";s"] = { "σ", [[\sigma]] },
-	[";t"] = { "τ", [[\tau]] },
-	[";w"] = { "ω", [[\omega]] },
-	[";u"] = { "υ", [[\upsilon]] },
-	[";x"] = { "ξ", [[\xi]] },
-	[";y"] = { "ψ", [[\psi]] },
-	[";z"] = { "ζ", [[\zeta]] },
-	[";D"] = { "Δ", [[\Delta]] },
-	[";F"] = { "Φ", [[\Phi]] },
-	[";G"] = { "Γ", [[\Gamma]] },
-	[";L"] = { "Λ", [[\Lambda]] },
-	[";P"] = { "Π", [[\Pi]] },
-	[";Q"] = { "Θ", [[\Theta]] },
-	[";S"] = { "Σ", [[\Sigma]] },
-	[";U"] = { "Υ", [[\Upsilon]] },
-	[";W"] = { "Ω", [[\Omega]] },
-	[";X"] = { "Ξ", [[\Xi]] },
-	[";Y"] = { "Ψ", [[\Psi]] }
+	[";a"] = [[\alpha]],
+	[";b"] = [[\beta]],
+	[";c"] = [[\chi]],
+	[";d"] = [[\delta]],
+	[";e"] = [[\epsilon]],
+	[";ve"] = [[\varepsilon]],
+	[";f"] = [[\phi]],
+	[";vf"] = [[\varphi]],
+	[";g"] = [[\gamma]],
+	[";h"] = [[\eta]],
+	[";i"] = [[\iota]],
+	[";k"] = [[\kappa]],
+	[";l"] = [[\lambda]],
+	[";m"] = [[\mu]],
+	[";n"] = [[\nu]],
+	[";p"] = [[\pi]],
+	[";q"] = [[\theta]],
+	[";r"] = [[\rho]],
+	[";s"] = [[\sigma]],
+	[";t"] = [[\tau]],
+	[";w"] = [[\omega]],
+	[";u"] = [[\upsilon]],
+	[";x"] = [[\xi]],
+	[";y"] = [[\psi]],
+	[";z"] = [[\zeta]],
+	[";D"] = [[\Delta]],
+	[";F"] = [[\Phi]],
+	[";G"] = [[\Gamma]],
+	[";L"] = [[\Lambda]],
+	[";P"] = [[\Pi]],
+	[";Q"] = [[\Theta]],
+	[";S"] = [[\Sigma]],
+	[";U"] = [[\Upsilon]],
+	[";W"] = [[\Omega]],
+	[";X"] = [[\Xi]],
+	[";Y"] = [[\Psi]]
 }
 
--- trig = { name, command, priority? }
+-- trig = command
 local symbol_specs = {
 	-- logic
-	inn = { "∈", [[\in ]] },
-	["!in"] = { "∉", [[\not\in ]] },
-	[";A"] = { "∀", [[\forall]] },
-	[";E"] = { "∃", [[\exists]] },
+	inn = [[\in ]],
+	["!in"] = [[\not\in ]],
+	[";A"] = [[\forall]],
+	[";E"] = [[\exists]],
 	-- relations and operations
-	["!="] = { "!=", [[\neq ]] },
-	["<="] = { "≤", [[\leq ]] },
-	[">="] = { "≥", [[\geq ]] },
-	["<<"] = { "<<", [[\ll ]] },
-	[">>"] = { ">>", [[\gg ]] },
-	["~~"] = { "~", [[\sim ]] },
-	["~="] = { "≃", [[\simeq ]] },
-	["=~"] = { "≅", [[\cong ]] },
-	["::"] = { ":", [[\colon ]] },
-	[":="] = { "≔", [[\coloneqq ]] },
-	["=:"] = { "≔", [[\eqqcolon ]] },
-	["..."] = { "·", [[\dots]] },
-	["||"] = { "|", [[\mid ]] },
-	xx = { "×", [[\times]] },
-	op = { "⊕", [[\oplus]] },
-	ox = { "⊗", [[\otimes]] },
-	nabl = { "∇", [[\nabla]] },
-	[";="] = { "≡", [[\equiv ]] },
-	[";-"] = { "∖", [[\setminus ]] },
-	[";6"] = { "∂", [[\partial]] },
-	[";8"] = { "∞", [[\infty]] },
-	[";."] = { "·", [[\cdot]] },
-	[";<"] = { "⟨", [[\langle]] },
-	[";>"] = { "⟩", [[\rangle]] },
+	["!="] = [[\neq ]],
+	["<="] = [[\leq ]],
+	[">="] = [[\geq ]],
+	["<<"] = [[\ll ]],
+	[">>"] = [[\gg ]],
+	["~~"] = [[\sim ]],
+	["~="] = [[\simeq ]],
+	["=~"] = [[\cong ]],
+	["::"] = [[\colon ]],
+	[":="] = [[\coloneqq ]],
+	["=:"] = [[\eqqcolon ]],
+	["..."] = [[\dots]],
+	["||"] = [[\mid ]],
+	xx = [[\times]],
+	op = [[\oplus]],
+	ox = [[\otimes]],
+	nabl = [[\nabla]],
+	[";="] = [[\equiv ]],
+	[";-"] = [[\setminus ]],
+	[";6"] = [[\partial]],
+	[";8"] = [[\infty]],
+	[";."] = [[\cdot]],
+	[";<"] = [[\langle]],
+	[";>"] = [[\rangle]],
 	-- number systems and sets
-	AA = { "𝔸", [[\mathbb{A}]] },
-	CC = { "ℂ", [[\mathbb{C}]] },
-	DD = { "𝔻", [[\mathbb{D}]] },
-	FF = { "𝔽", [[\mathbb{F}]] },
-	GG = { "𝔾", [[\mathbb{G}]] },
-	HH = { "ℍ", [[\mathbb{H}]] },
-	NN = { "ℕ", [[\mathbb{N}]] },
-	OO = { "O", [[\mathcal{O}]] },
-	PP = { "ℙ", [[\mathbb{P}]] },
-	QQ = { "ℚ", [[\mathbb{Q}]] },
-	RR = { "ℝ", [[\mathbb{R}]] },
-	ZZ = { "ℤ", [[\mathbb{Z}]] },
-	cc = { "⊂", [[\subset ]] },
-	cq = { "⊆", [[\subseteq ]] },
-	qq = { "⊃", [[\supset ]] },
-	qc = { "⊇", [[\supseteq ]] },
-	Nn = { "∩", [[\cap ]] },
-	UU = { "∪", [[\cup]] },
-	[";0"] = { "∅", [[\emptyset]] },
+	AA = [[\mathbb{A}]],
+	CC = [[\mathbb{C}]],
+	DD = [[\mathbb{D}]],
+	FF = [[\mathbb{F}]],
+	GG = [[\mathbb{G}]],
+	HH = [[\mathbb{H}]],
+	NN = [[\mathbb{N}]],
+	OO = [[\mathcal{O}]],
+	PP = [[\mathbb{P}]],
+	QQ = [[\mathbb{Q}]],
+	RR = [[\mathbb{R}]],
+	ZZ = [[\mathbb{Z}]],
+	cc = [[\subset ]],
+	cq = [[\subseteq ]],
+	qq = [[\supset ]],
+	qc = [[\supseteq ]],
+	Nn = [[\cap ]],
+	UU = [[\cup]],
+	[";0"] = [[\emptyset]],
 	-- arrows
-	["=>"] = { "⇒", [[\implies]] },
-	["=<"] = { "⇐", [[\impliedby]] },
-	["->"] = { "→", [[\to ]], 250 },
-	["!>"] = { "↦", [[\mapsto ]] },
-	["-->"] = { "⟶", [[\longrightarrow ]], 500 },
-	["<->"] = { "↔", [[\leftrightarrow ]], 500 },
-	["2>"] = { "⇉", [[\rightrightarrows ]], 400 },
-	iff = { "⟺", [[\iff ]] },
-	upar = { "↑", [[\uparrow]] },
-	dnar = { "↓", [[\downarrow]] },
+	["=>"] = [[\implies]],
+	["=<"] = [[\impliedby]],
+	["!>"] = [[\mapsto ]],
+	iff = [[\iff ]],
+	upar = [[\uparrow]],
+	dnar = [[\downarrow]],
 	-- spacing and other symbols
-	dag = { "†", [[\dagger]] },
-	lll = { "ℓ", [[\ell]] },
-	quad = { " ", [[\quad ]] }
+	dag = [[\dagger]],
+	lll = [[\ell]],
+	quad = [[\quad ]]
 }
 
 local operator_specs = {
@@ -265,14 +232,57 @@ local operator_specs = {
 	"int", "ker", "log", "max", "min", "perp", "sec", "sin", "star", "tan", "Gr", "Quot"
 }
 
+-- One snippet looks up the typed text in this table, instead of LuaSnip testing
+-- about 120 separate triggers on every keystroke.
+---@type table<string, { command: string, word_start: boolean }>
+local symbols = {}
 for _, specs in ipairs({ greek_specs, symbol_specs }) do
-	for trig, spec in pairs(specs) do
-		table.insert(autosnips, symbol_snippet(trig, spec[1], spec[2], spec[3]))
+	for trig, command in pairs(specs) do
+		symbols[trig] = { command = command, word_start = false }
+	end
+end
+-- Operator names expand only at the start of a word, so `arcsin` is not `arc\sin`.
+for _, name in ipairs(operator_specs) do
+	symbols[name] = { command = "\\" .. name, word_start = true }
+end
+
+local longest_trigger = 0
+for trig in pairs(symbols) do
+	longest_trigger = math.max(longest_trigger, #trig)
+end
+
+-- Try longer suffixes such as `arcsin` before `sin`.
+---@return fun(line_to_cursor: string): string?, string[]?
+local function symbol_trigger()
+	return function (line_to_cursor)
+		for length = math.min(longest_trigger, #line_to_cursor), 1, -1 do
+			local trig = line_to_cursor:sub(-length)
+			local symbol = symbols[trig]
+			if symbol then
+				local before = line_to_cursor:sub(-length - 1, -length - 1)
+				-- A command typed without its backslash must not expand after one.
+				local after_backslash = before == "\\" and symbol.command:sub(2, length + 1) == trig
+				local inside_word = symbol.word_start and before:find("[%w_]") ~= nil
+				if not after_backslash and not inside_word then
+					return trig, {}
+				end
+			end
+		end
 	end
 end
 
-for _, trig in ipairs(operator_specs) do
-	table.insert(autosnips, auto_backslash_snippet(trig))
-end
+-- `trig` is only a label; `symbol_trigger` does the matching. Hidden, because a
+-- completion menu cannot list the individual symbols of one snippet.
+table.insert(autosnips, s({
+	trig = "symbols",
+	name = "symbols",
+	desc = "Greek letters, relations, arrows and operator names",
+	docTrig = ";a", -- LuaSnip uses this trigger for the static preview.
+	trigEngine = symbol_trigger,
+	wordTrig = false,
+	hidden = true
+}, f(function (_, snip)
+	return symbols[snip.trigger].command
+end), math_opts))
 
 return nil, autosnips

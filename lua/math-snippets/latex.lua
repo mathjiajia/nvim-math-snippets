@@ -136,6 +136,9 @@ local function in_scope(node, row, col, kind)
 	if kind == "line_comment" or kind == "comment" or kind == "source_code" then
 		return true
 	end
+	if not node:has_error() then
+		return false
+	end
 	local last = node:child(node:child_count() - 1)
 	while last do
 		if last:missing() then
@@ -251,14 +254,19 @@ local function classify(node, bufnr, row, col)
 			end
 			local env
 			if kind == "math_environment" or kind == "generic_environment" then
-				env = environment_name(node, bufnr)
+				local group = child and child:type() == "curly_group"
+				-- Once an inner formula sets math mode, only an enclosing
+				-- column specification can still make this environment relevant.
+				if not math_mode or group then
+					env = environment_name(node, bufnr)
+				end
 				-- Column specifications/counts are not math content.
-				if ARGUMENT_ENVS[env] and child and child:type() == "curly_group" and child == node:named_child(1)
+				if group and ARGUMENT_ENVS[env] and child == node:named_child(1)
 					and in_scope(child, row, col) then
 					return EMPTY
 				end
 				-- Defer the text-mode requirement until the nearest mode is known.
-				if not bullets and BULLET_ENVS(env) then
+				if not math_mode and not bullets and BULLET_ENVS(env) then
 					bullets = true
 				end
 			end
@@ -287,14 +295,13 @@ end
 -- window ranges so a condition does not evict trees needed by the next redraw.
 -- Include the cursor row in case the window has not scrolled to it yet.
 ---@param bufnr integer
----@param row integer
+---@param cursor_range [integer, integer]
 ---@return [integer, integer] | [integer, integer][]
-local function context_ranges(bufnr, row)
-	local cursor_range = { row, row + 1 }
+local function context_ranges(bufnr, cursor_range)
 	if not ts.highlighter.active[bufnr] then
 		return cursor_range
 	end
-	local ranges = { cursor_range }
+	local ranges = { { cursor_range[1], cursor_range[2] } }
 	for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
 		if api.nvim_win_get_buf(win) == bufnr then
 			ranges[#ranges + 1] = { vim.fn.line("w0", win) - 1, vim.fn.line("w$", win) + 1 }
@@ -322,33 +329,36 @@ end
 ---@param bufnr  integer
 ---@param row    integer
 ---@param col    integer
----@param range  [integer, integer] | [integer, integer][]
+---@param range  [integer, integer]
 ---@return math_snippets.Context
 local function parse_context(parser, bufnr, row, col, range)
-	-- Parse synchronously, including custom injections that override LaTeX context.
-	parser:parse(range)
+	if not parser:is_valid(false, range) then
+		parser:parse(context_ranges(bufnr, range))
+	end
 	local left = math.max(col - 1, 0)
 	local point = { row, left, row, left }
 	local language_tree = parser:language_for_range(point)
-	local node = language_tree:node_for_range(point)
-	-- At column zero, inserting before an injected comment belongs to its
-	-- parent language. Do not mistake the right-hand injection for context.
-	while col == 0 and node and language_tree:lang() ~= "latex" do
+	while language_tree:lang() ~= "latex" do
+		-- At column zero an injection starting to the right of the insertion
+		-- point belongs to the parent. Everywhere else the language suffices.
+		if col ~= 0 then
+			return EMPTY
+		end
 		local parent = language_tree:parent()
 		if not parent then
-			break
+			return EMPTY
 		end
-		local start_row, start_col = node:tree():root():start()
+		local tree = language_tree:tree_for_range(point)
+		if not tree then
+			return EMPTY
+		end
+		local start_row, start_col = tree:root():start()
 		if start_row ~= row or start_col ~= col then
-			break
+			return EMPTY
 		end
 		language_tree = parent
-		node = language_tree:node_for_range(point)
 	end
-	if language_tree:lang() ~= "latex" then
-		return EMPTY
-	end
-	return classify(node, bufnr, row, col)
+	return classify(language_tree:node_for_range(point), bufnr, row, col)
 end
 
 -- Share one result across conditions at the same insertion point; no cleanup needed.
@@ -359,7 +369,7 @@ end
 ---@field row     integer?
 ---@field col     integer?
 ---@field parser  vim.treesitter.LanguageTree?
----@field range   ([integer, integer] | [integer, integer][])?
+---@field range   [integer, integer]?
 ---@field context math_snippets.Context?
 local cache = {}
 local filetype_opts = { buf = 0 }
@@ -382,12 +392,12 @@ local function get_context()
 		return EMPTY
 	end
 	-- Parser replacement and explicit invalidation need not change the buffer tick.
+	local range = cache.row == row and cache.range or { row, row + 1 }
 	if cache.bufnr == bufnr and cache.tick == tick and cache.row == row and cache.col == col and cache.parser == parser
-		and parser:is_valid(false, cache.range) then
+		and parser:is_valid(false, range) then
 		return cache.context
 	end
 
-	local range = context_ranges(bufnr, row)
 	local parsed, context = pcall(parse_context, parser, bufnr, row, col, range)
 	if not parsed then
 		vim.notify_once("nvim-math-snippets: context detection failed: " .. tostring(context), vim.log.levels.WARN)
@@ -412,41 +422,61 @@ api.nvim_create_autocmd("BufUnload", {
 	desc = "Clear cached Beamer detection for unloaded buffers"
 })
 
--- A class node always contains this literal command. Reject classless chapter
--- files before parsing; comments and verbatim matches still go through the query.
--- Read in chunks so an ordinary preamble does not copy the whole buffer.
+local CLASS_COMMAND = "\\documentclass"
+
+---@param trees table<integer, TSTree>
 ---@param bufnr integer
----@return boolean
-local function has_class_command(bufnr)
-	local count = api.nvim_buf_line_count(bufnr)
-	for first = 0, count - 1, 128 do
-		for _, line in ipairs(api.nvim_buf_get_lines(bufnr, first, math.min(first + 128, count), false)) do
-			if line:find("\\documentclass", 1, true) then
-				return true
+---@param row integer
+---@param col integer? If given, inspect only the syntax at this command
+---@return boolean? # nil if the query found no class path
+local function query_class(trees, bufnr, row, col)
+	beamer_query = beamer_query or ts.query.parse("latex", [[
+		(class_include path: (curly_group_path path: (path) @class))
+	]])
+	for _, tree in ipairs(trees) do
+		local node = tree:root()
+		if col then
+			-- The command token is anonymous, so this includes its whole
+			-- declaration, even when options and paths extend over many lines.
+			node = node:named_descendant_for_range(row, col, row, col + #CLASS_COMMAND)
+		end
+		if node then
+			local _, path = beamer_query:iter_captures(node, bufnr, row)()
+			if path then
+				return vim.trim(node_text(path, bufnr)) == "beamer"
 			end
 		end
 	end
-	return false
 end
 
 ---@param parser vim.treesitter.LanguageTree
----@param bufnr  integer
----@return boolean
+---@param bufnr integer
+---@return boolean beamer
+---@return boolean no_class_command
 local function detect_beamer(parser, bufnr)
-	beamer_query = beamer_query
-		or ts.query.parse("latex", [[
-		(class_include
-		  path: (curly_group_path
-		    path: (path) @class))
-	]])
-	for _, tree in ipairs(parser:parse()) do
-		local _, node = beamer_query:iter_captures(tree:root(), bufnr)()
-		if node then
-			-- The first declaration determines the class, including a non-Beamer class.
-			return vim.trim(node_text(node, bufnr)) == "beamer"
+	local count = api.nvim_buf_line_count(bufnr)
+	local trees
+	for start = 0, count - 1, 128 do
+		local lines = api.nvim_buf_get_lines(bufnr, start, math.min(start + 128, count), false)
+		for index, line in ipairs(lines) do
+			local col = line:find(CLASS_COMMAND, 1, true)
+			while col do
+				local row = start + index - 1
+				if trees then
+					-- After a false candidate, use one ordered query for the rest.
+					-- Repeated point lookups are expensive in files full of examples.
+					return query_class(trees, bufnr, row) == true, false
+				end
+				trees = parser:is_valid(true) and parser:trees() or parser:parse()
+				local beamer = query_class(trees, bufnr, row, col - 1)
+				if beamer ~= nil then
+					return beamer, false
+				end
+				col = line:find(CLASS_COMMAND, col + #CLASS_COMMAND, true)
+			end
 		end
 	end
-	return false
+	return false, trees == nil
 end
 
 --- Check the first document class, with an optional buffer-local override.
@@ -472,17 +502,12 @@ local function in_beamer()
 	if entry and entry.tick == tick and entry.parser == parser and (entry.no_class or parser:is_valid(true)) then
 		return entry.result
 	end
-	if not has_class_command(bufnr) then
-		-- This negative result depends only on the text, not parser validity.
-		beamer_cache[bufnr] = { tick = tick, parser = parser, result = false, no_class = true }
-		return false
-	end
-	local ok, result = pcall(detect_beamer, parser, bufnr)
+	local ok, result, no_class = pcall(detect_beamer, parser, bufnr)
 	if not ok then
 		vim.notify_once("nvim-math-snippets: Beamer detection failed: " .. tostring(result), vim.log.levels.WARN)
 		return false
 	end
-	beamer_cache[bufnr] = { tick = tick, parser = parser, result = result, no_class = false }
+	beamer_cache[bufnr] = { tick = tick, parser = parser, result = result, no_class = no_class }
 	return result
 end
 

@@ -47,10 +47,16 @@ Blink completion is loaded only when entering a reference.
 
 LuaSnip loads these files directly. Shared context detection and pattern trigger
 matching live in `lua/math-snippets/`; the visual-selection helper is local to
-`expressions.lua`. Pattern triggers prepare their end anchor once and allocate
-capture tables only on a match. The inline-math rules share a scan of the last
-token and its trailing whitespace. Command guards check for an existing backslash
-before checking math context.
+`expressions.lua`. Most bounded patterns search the end of the line in place.
+Frontiers and position captures use a separate suffix to preserve LuaSnip’s
+matching rules. Capture tables are allocated only on a match. The inline-math
+rules share a scan of the last token and its trailing whitespace. Command guards
+check for an existing backslash before checking math context.
+
+Greek letters, operator names, and most fixed symbols in `symbols.lua` share
+one hidden autosnippet that checks the longest suffix first. The arrows `->`,
+`2>`, `-->`, and `<->` keep their lower LuaSnip priorities so personal snippets
+can override them. These arrows are also hidden from completion.
 
 ## General conditions
 
@@ -100,8 +106,9 @@ Closing a text argument resumes the enclosing math scope; closing a formula or
 environment leaves its scope immediately.
 
 Detection uses Neovim's native [Tree-sitter API][treesitter-api], with synchronous
-parsing and one shared result per buffer change and cursor position. With active
-Tree-sitter highlighting, parsing covers the visible ranges of every window
+parsing and one shared result per buffer change and cursor position. A cursor
+move reuses the existing tree when the new row and its injections are valid.
+When a parse is needed with active highlighting, it covers every window
 showing the buffer in the current tab, plus the cursor line. This preserves the
 injected trees needed for highlighting. Without a highlighter, only the cursor
 line's injections are requested.
@@ -134,11 +141,11 @@ heuristics, which can be adjusted in `lua/math-snippets/latex.lua` if needed.
 ## Beamer snippets
 
 `require("math-snippets.latex").in_beamer`, used by `bfr` and `bbl`, checks the
-first `\documentclass` declaration in the current buffer. Detection uses the
-LaTeX Tree-sitter parser, supports multiline
-declarations and options, and ignores commented-out declarations. Buffers without
-the literal `\documentclass` command skip parsing and the query; possible matches
-still use Tree-sitter, including declarations nested inside command arguments.
+first `\documentclass` declaration in the current buffer. Detection supports
+multiline declarations, options, and declarations nested inside commands.
+Buffers without the literal `\documentclass` skip parsing and the query. For
+the first occurrence, Tree-sitter checks its syntax node. If that occurrence
+has no class path, a later occurrence triggers a search of the remaining tree.
 Results are cached per buffer until its text changes. Results obtained by parsing
 also expire when the parser is invalidated. Unloading a buffer clears its cache
 entry. Unexpected detection failures warn once and remain retryable without

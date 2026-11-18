@@ -1,5 +1,4 @@
--- LuaSnip-compatible Lua patterns: compile the end anchor once and only allocate
--- the capture table after a successful match.
+-- Build the end-anchored Lua pattern once and allocate captures only on a match.
 ---@param line  string
 ---@param first integer?
 ---@param _     integer?
@@ -17,12 +16,21 @@ end
 local function pattern(trig, opts)
 	local anchored = trig .. "$"
 	local max_len = opts and opts.max_len
-	return function (line_to_cursor)
-		if max_len then
-			-- Keep substring semantics for frontier patterns and position captures.
-			line_to_cursor = line_to_cursor:sub(math.max(1, #line_to_cursor - max_len + 1))
+	if not max_len then
+		return function (line) return matched(line, line:find(anchored)) end
+	end
+	max_len = math.max(0, max_len)
+	-- A frontier can inspect the byte before the search starts, and position
+	-- captures count from the start of the subject. Both need an actual suffix.
+	if trig:find("%f", 1, true) or trig:find("()", 1, true) then
+		return function (line)
+			local suffix = line:sub(math.max(1, #line - max_len + 1))
+			return matched(suffix, suffix:find(anchored))
 		end
-		return matched(line_to_cursor, line_to_cursor:find(anchored))
+	end
+	return function (line)
+		local first = math.max(1, #line - max_len + 1)
+		return matched(line, line:find(anchored, first))
 	end
 end
 
